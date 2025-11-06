@@ -1,0 +1,47 @@
+/target
+
+# Rust
+Cargo.lock
+**/*.rs.bk
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Build artifacts
+/target/
+/build/
+/dist/
+
+# Generated files
+src/ffi/bindings.rs
+
+# Test output
+/tests/output/
+/examples/output/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Backup files
+*.bak
+*.backup
+
+# Debug files
+*.debug
