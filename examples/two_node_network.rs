@@ -43,18 +43,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure node1 to listen on a specific port
     println!("\n=== Creating Node 1 ===");
-    let mut node1_config = CodexConfig::new()
+    let node1_config = CodexConfig::new()
         .log_level(LogLevel::Info)
         .data_dir(&node1_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
         .max_peers(50)
-        .discovery_port(8090);
-
-    // Manually set listen addresses since builder method doesn't exist
-    node1_config.listen_addrs = vec![
-        "/ip4/127.0.0.1/tcp/0".to_string(), // Let the OS choose a port
-        "/ip4/0.0.0.0/tcp/0".to_string(),
-    ];
+        .discovery_port(8090)
+        .listen_addrs(vec![
+            "/ip4/127.0.0.1/tcp/0".to_string(),
+            "/ip4/0.0.0.0/tcp/0".to_string(),
+        ]);
 
     let mut node1 = CodexNode::new(node1_config)?;
     node1.start()?;
@@ -107,16 +105,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Discovery node count: {}", debug2.discovery_node_count());
 
     // Try to connect node2 to node1
-    // Note: In a real scenario, you'd need to know the actual multiaddresses
-    // For this example, we'll use placeholder addresses
     println!("\n=== Attempting P2P Connection ===");
 
-    // Get node1's listening addresses from debug info or use common localhost addresses
-    let node1_addresses = vec![
-        "/ip4/127.0.0.1/tcp/8080".to_string(),
-        "/ip4/127.0.0.1/tcp/8081".to_string(),
-        "/ip4/127.0.0.1/tcp/8082".to_string(),
-    ];
+    // Get node1's actual listening addresses from debug info
+    println!("Getting node1's actual listening addresses...");
+    let node1_addresses = debug1.addrs.clone();
 
     println!("Attempting to connect node2 to node1...");
     println!("  Node1 Peer ID: {}", node1_peer_id);
@@ -167,17 +160,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Try to fetch the content on node2 (this should trigger P2P transfer if connected)
     println!("\n=== Fetching Content on Node 2 ===");
-    let fetch_result = codex_rust_bindings::fetch(&node2, &upload_result.cid).await;
+
+    // Use tokio::time::timeout to prevent hanging
+    let fetch_timeout = tokio::time::Duration::from_secs(30);
+    let fetch_result = tokio::time::timeout(
+        fetch_timeout,
+        codex_rust_bindings::fetch(&node2, &upload_result.cid),
+    )
+    .await;
+
     match fetch_result {
-        Ok(manifest) => {
+        Ok(Ok(manifest)) => {
             println!("✓ Successfully fetched content on node2:");
             println!("  CID: {}", manifest.cid);
             println!("  Size: {} bytes", manifest.dataset_size);
             println!("  Block size: {} bytes", manifest.block_size);
         }
-        Err(e) => {
+        Ok(Err(e)) => {
             println!("✗ Failed to fetch content on node2: {}", e);
             println!("  This might be expected if nodes are not connected");
+        }
+        Err(_) => {
+            println!("✗ Fetch operation timed out after 30 seconds");
+            println!("  This indicates the nodes are not properly connected or the content is not available");
         }
     }
 
