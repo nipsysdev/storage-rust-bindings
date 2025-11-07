@@ -31,37 +31,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     file.sync_all()?;
     println!("Test file created at: {}", file_path.display());
 
-    // Create a minimal Codex configuration (following Go test pattern)
+    // Create a minimal Codex configuration
     println!("Creating Codex configuration...");
-    let config = CodexConfig {
-        log_level: Some(LogLevel::Error),
-        data_dir: Some(temp_dir.path().join("codex_data")),
-        log_format: None,
-        metrics_enabled: None,
-        metrics_address: None,
-        metrics_port: None,
-        listen_addrs: vec![],
-        nat: None,
-        discovery_port: None,
-        net_priv_key_file: None,
-        bootstrap_nodes: vec![],
-        max_peers: None,
-        num_threads: None,
-        agent_string: None,
-        repo_kind: None,
-        storage_quota: None, // Don't set storage_quota to avoid JSON parsing issues
-        block_ttl: None,
-        block_maintenance_interval: None,
-        block_maintenance_number_of_blocks: None,
-        block_retries: Some(3000), // Set block_retries like Go tests
-        cache_size: None,
-        log_file: None,
-    };
-
-    // Print the JSON configuration to debug
-    let config_json = config.to_json()?;
-    println!("Generated JSON: {}", config_json);
-    println!("JSON length: {}", config_json.len());
+    let config = CodexConfig::new()
+        .log_level(LogLevel::Error)
+        .data_dir(temp_dir.path().join("codex_data"))
+        .block_retries(3000);
 
     // Create and start a Codex node
     println!("Creating and starting Codex node...");
