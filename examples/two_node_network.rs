@@ -218,8 +218,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("✗ Content verification failed!");
         }
     } else {
-        println!("\n=== Skipping Download ===");
-        println!("Content not available on node2, skipping download test");
+        println!("\n=== Download Test Failed ===");
+        println!("Content not available on node2 - P2P transfer test failed!");
+        return Err(
+            "P2P transfer test failed: Content was not available on node2 after fetch attempt"
+                .into(),
+        );
     }
 
     // Get final debug information
