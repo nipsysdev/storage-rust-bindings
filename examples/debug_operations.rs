@@ -36,19 +36,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Get initial debug information
     println!("\n=== Initial Debug Information ===");
     let debug_info = codex_rust_bindings::debug(&node).await?;
-    println!("Node version: {}", debug_info.version);
-    println!("Node revision: {}", debug_info.revision);
-    println!("Peer ID: {}", debug_info.peer_id);
-    println!("Repository path: {}", debug_info.repo);
+    println!("Peer ID: {}", debug_info.peer_id());
+    println!("Addresses: {:?}", debug_info.addrs);
     println!("SPR: {}", debug_info.spr);
-    println!("Current log level: {}", debug_info.log_level);
-    println!("Connected peers: {}", debug_info.connected_peers);
-    println!("Uptime: {} seconds", debug_info.uptime_seconds);
-    println!("Memory usage: {} bytes", debug_info.memory_usage_bytes);
-
-    if let Some(extra) = &debug_info.extra {
-        println!("Extra debug info: {}", extra);
-    }
+    println!("Announce addresses: {:?}", debug_info.announce_addresses);
+    println!("Local node ID: {}", debug_info.table.local_node.node_id);
+    println!(
+        "Local node address: {}",
+        debug_info.table.local_node.address
+    );
+    println!("Local node seen: {}", debug_info.table.local_node.seen);
+    println!("Address count: {}", debug_info.address_count());
+    println!(
+        "Announce address count: {}",
+        debug_info.announce_address_count()
+    );
+    println!(
+        "Discovery node count: {}",
+        debug_info.discovery_node_count()
+    );
 
     // Test updating log levels
     println!("\n=== Testing Log Level Updates ===");
@@ -71,10 +77,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Verify the change by getting debug info again
                 let debug_info = codex_rust_bindings::debug(&node).await?;
-                println!(
-                    "  Current log level in debug info: {}",
-                    debug_info.log_level
-                );
+                println!("  Debug info retrieved successfully after log level change");
+                println!("  Peer ID: {}", debug_info.peer_id());
+                println!("  Address count: {}", debug_info.address_count());
             }
             Err(e) => {
                 println!("  ✗ Failed to update log level to {:?}: {}", log_level, e);
@@ -164,8 +169,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match debug_info_result {
         Ok(info) => {
             println!("  ✓ Debug info works without starting node:");
-            println!("    Version: {}", info.version);
-            println!("    Peer ID: {}", info.peer_id);
+            println!("    Peer ID: {}", info.peer_id());
+            println!("    Address count: {}", info.address_count());
         }
         Err(e) => println!("  ✗ Debug info failed without starting node: {}", e),
     }
@@ -224,14 +229,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Final Debug Information ===");
     let final_debug_info = codex_rust_bindings::debug(&node).await?;
     println!("Final node state:");
-    println!("  Version: {}", final_debug_info.version);
-    println!("  Peer ID: {}", final_debug_info.peer_id);
-    println!("  Connected peers: {}", final_debug_info.connected_peers);
-    println!("  Uptime: {} seconds", final_debug_info.uptime_seconds);
+    println!("  Peer ID: {}", final_debug_info.peer_id());
+    println!("  Address count: {}", final_debug_info.address_count());
     println!(
-        "  Memory usage: {} bytes",
-        final_debug_info.memory_usage_bytes
+        "  Announce address count: {}",
+        final_debug_info.announce_address_count()
     );
+    println!(
+        "  Discovery node count: {}",
+        final_debug_info.discovery_node_count()
+    );
+    println!(
+        "  Local node ID: {}",
+        final_debug_info.table.local_node.node_id
+    );
+    println!("  Health status: {}", final_debug_info.health_status());
 
     // Stop and destroy the node
     println!("\n=== Cleanup ===");

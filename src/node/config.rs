@@ -299,6 +299,12 @@ impl CodexConfig {
         self
     }
 
+    /// Set the discovery port
+    pub fn discovery_port(mut self, port: u16) -> Self {
+        self.discovery_port = Some(port);
+        self
+    }
+
     /// Convert the configuration to a JSON string
     pub fn to_json(&self) -> Result<String> {
         serde_json::to_string(self).map_err(CodexError::from)

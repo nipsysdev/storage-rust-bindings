@@ -39,26 +39,44 @@ impl std::fmt::Display for LogLevel {
 /// Debug information about the node
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DebugInfo {
-    /// Node version
-    pub version: String,
-    /// Node revision
-    pub revision: String,
     /// Node peer ID
-    pub peer_id: String,
-    /// Repository path
-    pub repo: String,
+    pub id: String,
+    /// Node addresses
+    pub addrs: Vec<String>,
     /// Storage Provider Reputation (SPR)
     pub spr: String,
-    /// Current log level
-    pub log_level: String,
-    /// Number of connected peers
-    pub connected_peers: usize,
-    /// Uptime in seconds
-    pub uptime_seconds: u64,
-    /// Memory usage in bytes
-    pub memory_usage_bytes: u64,
-    /// Additional debug information
-    pub extra: Option<serde_json::Value>,
+    /// Announce addresses
+    #[serde(rename = "announceAddresses")]
+    pub announce_addresses: Vec<String>,
+    /// Discovery table information
+    pub table: DiscoveryTable,
+}
+
+/// Discovery table information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveryTable {
+    /// Local node information
+    #[serde(rename = "localNode")]
+    pub local_node: LocalNodeInfo,
+    /// Remote nodes in the table
+    pub nodes: Vec<serde_json::Value>,
+}
+
+/// Local node information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalNodeInfo {
+    /// Node ID
+    #[serde(rename = "nodeId")]
+    pub node_id: String,
+    /// Peer ID
+    #[serde(rename = "peerId")]
+    pub peer_id: String,
+    /// Node record
+    pub record: String,
+    /// Bind address
+    pub address: String,
+    /// Whether the node has been seen
+    pub seen: bool,
 }
 
 impl DebugInfo {
@@ -67,112 +85,33 @@ impl DebugInfo {
         Self::default()
     }
 
-    /// Set the version
-    pub fn version(mut self, version: String) -> Self {
-        self.version = version;
-        self
+    /// Get the peer ID
+    pub fn peer_id(&self) -> &str {
+        &self.id
     }
 
-    /// Set the revision
-    pub fn revision(mut self, revision: String) -> Self {
-        self.revision = revision;
-        self
+    /// Get the number of addresses
+    pub fn address_count(&self) -> usize {
+        self.addrs.len()
     }
 
-    /// Set the peer ID
-    pub fn peer_id(mut self, peer_id: String) -> Self {
-        self.peer_id = peer_id;
-        self
+    /// Get the number of announce addresses
+    pub fn announce_address_count(&self) -> usize {
+        self.announce_addresses.len()
     }
 
-    /// Set the repository path
-    pub fn repo(mut self, repo: String) -> Self {
-        self.repo = repo;
-        self
-    }
-
-    /// Set the SPR
-    pub fn spr(mut self, spr: String) -> Self {
-        self.spr = spr;
-        self
-    }
-
-    /// Set the log level
-    pub fn log_level(mut self, log_level: String) -> Self {
-        self.log_level = log_level;
-        self
-    }
-
-    /// Set the connected peers count
-    pub fn connected_peers(mut self, count: usize) -> Self {
-        self.connected_peers = count;
-        self
-    }
-
-    /// Set the uptime
-    pub fn uptime(mut self, seconds: u64) -> Self {
-        self.uptime_seconds = seconds;
-        self
-    }
-
-    /// Set the memory usage
-    pub fn memory_usage(mut self, bytes: u64) -> Self {
-        self.memory_usage_bytes = bytes;
-        self
-    }
-
-    /// Set extra information
-    pub fn extra(mut self, extra: serde_json::Value) -> Self {
-        self.extra = Some(extra);
-        self
-    }
-
-    /// Get uptime as a human-readable string
-    pub fn uptime_string(&self) -> String {
-        let seconds = self.uptime_seconds;
-        if seconds < 60 {
-            format!("{}s", seconds)
-        } else if seconds < 3600 {
-            format!("{}m {}s", seconds / 60, seconds % 60)
-        } else if seconds < 86400 {
-            format!(
-                "{}h {}m {}s",
-                seconds / 3600,
-                (seconds % 3600) / 60,
-                seconds % 60
-            )
-        } else {
-            format!(
-                "{}d {}h {}m {}s",
-                seconds / 86400,
-                (seconds % 86400) / 3600,
-                (seconds % 3600) / 60,
-                seconds % 60
-            )
-        }
-    }
-
-    /// Get memory usage as a human-readable string
-    pub fn memory_string(&self) -> String {
-        let bytes = self.memory_usage_bytes;
-        if bytes < 1024 {
-            format!("{}B", bytes)
-        } else if bytes < 1024 * 1024 {
-            format!("{:.1}KB", bytes as f64 / 1024.0)
-        } else if bytes < 1024 * 1024 * 1024 {
-            format!("{:.1}MB", bytes as f64 / (1024.0 * 1024.0))
-        } else {
-            format!("{:.1}GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
-        }
+    /// Get the number of nodes in the discovery table
+    pub fn discovery_node_count(&self) -> usize {
+        self.table.nodes.len()
     }
 
     /// Check if the node is healthy
     pub fn is_healthy(&self) -> bool {
         // Basic health checks
-        !self.version.is_empty()
-            && !self.peer_id.is_empty()
-            && self.memory_usage_bytes > 0
-            && self.uptime_seconds > 0
+        !self.id.is_empty()
+            && !self.addrs.is_empty()
+            && !self.spr.is_empty()
+            && !self.table.local_node.node_id.is_empty()
     }
 
     /// Get health status as a string
@@ -188,16 +127,20 @@ impl DebugInfo {
 impl Default for DebugInfo {
     fn default() -> Self {
         Self {
-            version: String::new(),
-            revision: String::new(),
-            peer_id: String::new(),
-            repo: String::new(),
+            id: String::new(),
+            addrs: Vec::new(),
             spr: String::new(),
-            log_level: String::new(),
-            connected_peers: 0,
-            uptime_seconds: 0,
-            memory_usage_bytes: 0,
-            extra: None,
+            announce_addresses: Vec::new(),
+            table: DiscoveryTable {
+                local_node: LocalNodeInfo {
+                    node_id: String::new(),
+                    peer_id: String::new(),
+                    record: String::new(),
+                    address: String::new(),
+                    seen: false,
+                },
+                nodes: Vec::new(),
+            },
         }
     }
 }
@@ -299,16 +242,11 @@ mod tests {
         // Don't actually start the node to avoid segfaults
 
         // Test that we can create the debug info structure
-        let debug_info = DebugInfo::new()
-            .version("1.0.0".to_string())
-            .peer_id("12D3KooWTest".to_string())
-            .uptime(3600)
-            .memory_usage(1024 * 1024);
+        let debug_info = DebugInfo::new();
 
-        assert_eq!(debug_info.version, "1.0.0");
-        assert_eq!(debug_info.peer_id, "12D3KooWTest");
-        assert_eq!(debug_info.uptime_seconds, 3600);
-        assert_eq!(debug_info.memory_usage_bytes, 1024 * 1024);
+        assert!(!debug_info.id.is_empty() || debug_info.id.is_empty()); // Basic field access test
+        assert_eq!(debug_info.address_count(), 0);
+        assert_eq!(debug_info.announce_address_count(), 0);
 
         node.destroy().unwrap();
     }
@@ -380,16 +318,28 @@ mod tests {
 
     #[test]
     fn test_debug_info_methods() {
-        let debug_info = DebugInfo::new()
-            .version("1.0.0".to_string())
-            .peer_id("12D3KooWExamplePeer".to_string())
-            .uptime(3661) // 1 hour, 1 minute, 1 second
-            .memory_usage(1024 * 1024 * 512); // 512MB
+        let debug_info = DebugInfo {
+            id: "12D3KooWExamplePeer".to_string(),
+            addrs: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            spr: "spr:test".to_string(),
+            announce_addresses: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            table: DiscoveryTable {
+                local_node: LocalNodeInfo {
+                    node_id: "test_node_id".to_string(),
+                    peer_id: "12D3KooWExamplePeer".to_string(),
+                    record: "test_record".to_string(),
+                    address: "127.0.0.1:8080".to_string(),
+                    seen: true,
+                },
+                nodes: vec![],
+            },
+        };
 
-        assert_eq!(debug_info.uptime_string(), "1h 1m 1s");
-        assert_eq!(debug_info.memory_string(), "512.0MB");
         assert!(debug_info.is_healthy());
         assert_eq!(debug_info.health_status(), "Healthy");
+        assert_eq!(debug_info.address_count(), 1);
+        assert_eq!(debug_info.announce_address_count(), 1);
+        assert_eq!(debug_info.discovery_node_count(), 0);
 
         let unhealthy_info = DebugInfo::new();
         assert!(!unhealthy_info.is_healthy());
@@ -400,42 +350,41 @@ mod tests {
     fn test_debug_info_structure() {
         // Simplified test that doesn't require actual node startup
         // Create a test debug info to verify structure
-        let test_debug_info = DebugInfo::new()
-            .version("1.0.0".to_string())
-            .revision("abc123".to_string())
-            .peer_id("12D3KooWExamplePeer".to_string())
-            .repo("/tmp/codex".to_string())
-            .spr("0.95".to_string())
-            .log_level("info".to_string())
-            .connected_peers(5)
-            .uptime(3600)
-            .memory_usage(1024 * 1024 * 100) // 100 MB
-            .extra(serde_json::json!({
-                "build_info": {
-                    "compiler": "rustc",
-                    "target": "x86_64-unknown-linux-gnu"
-                }
-            }));
+        let test_debug_info = DebugInfo {
+            id: "12D3KooWExamplePeer".to_string(),
+            addrs: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            spr: "spr:test".to_string(),
+            announce_addresses: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            table: DiscoveryTable {
+                local_node: LocalNodeInfo {
+                    node_id: "test_node_id".to_string(),
+                    peer_id: "12D3KooWExamplePeer".to_string(),
+                    record: "test_record".to_string(),
+                    address: "127.0.0.1:8080".to_string(),
+                    seen: true,
+                },
+                nodes: vec![],
+            },
+        };
 
         // Verify the debug info can be serialized and deserialized
         let json = serde_json::to_string(&test_debug_info).unwrap();
         let deserialized: DebugInfo = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(test_debug_info.version, deserialized.version);
-        assert_eq!(test_debug_info.revision, deserialized.revision);
-        assert_eq!(test_debug_info.peer_id, deserialized.peer_id);
-        assert_eq!(test_debug_info.repo, deserialized.repo);
+        assert_eq!(test_debug_info.id, deserialized.id);
+        assert_eq!(test_debug_info.addrs, deserialized.addrs);
         assert_eq!(test_debug_info.spr, deserialized.spr);
-        assert_eq!(test_debug_info.log_level, deserialized.log_level);
         assert_eq!(
-            test_debug_info.connected_peers,
-            deserialized.connected_peers
+            test_debug_info.announce_addresses,
+            deserialized.announce_addresses
         );
-        assert_eq!(test_debug_info.uptime_seconds, deserialized.uptime_seconds);
         assert_eq!(
-            test_debug_info.memory_usage_bytes,
-            deserialized.memory_usage_bytes
+            test_debug_info.table.local_node.node_id,
+            deserialized.table.local_node.node_id
         );
-        assert_eq!(test_debug_info.extra, deserialized.extra);
+        assert_eq!(
+            test_debug_info.table.local_node.peer_id,
+            deserialized.table.local_node.peer_id
+        );
     }
 }

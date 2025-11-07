@@ -47,7 +47,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .log_level(LogLevel::Info)
         .data_dir(&node1_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
-        .max_peers(50);
+        .max_peers(50)
+        .discovery_port(8090);
 
     // Manually set listen addresses since builder method doesn't exist
     node1_config.listen_addrs = vec![
@@ -71,7 +72,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .log_level(LogLevel::Info)
         .data_dir(&node2_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
-        .max_peers(50);
+        .max_peers(50)
+        .discovery_port(8091);
 
     // Manually set listen addresses since builder method doesn't exist
     node2_config.listen_addrs = vec![
@@ -95,14 +97,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let debug2 = codex_rust_bindings::debug(&node2).await?;
 
     println!("Node 1 debug info:");
-    println!("  Version: {}", debug1.version);
-    println!("  Connected peers: {}", debug1.connected_peers);
-    println!("  Uptime: {} seconds", debug1.uptime_seconds);
+    println!("  Peer ID: {}", debug1.peer_id());
+    println!("  Address count: {}", debug1.address_count());
+    println!("  Discovery node count: {}", debug1.discovery_node_count());
 
     println!("Node 2 debug info:");
-    println!("  Version: {}", debug2.version);
-    println!("  Connected peers: {}", debug2.connected_peers);
-    println!("  Uptime: {} seconds", debug2.uptime_seconds);
+    println!("  Peer ID: {}", debug2.peer_id());
+    println!("  Address count: {}", debug2.address_count());
+    println!("  Discovery node count: {}", debug2.discovery_node_count());
 
     // Try to connect node2 to node1
     // Note: In a real scenario, you'd need to know the actual multiaddresses
@@ -221,14 +223,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let final_debug2 = codex_rust_bindings::debug(&node2).await?;
 
     println!("Node 1 final status:");
-    println!("  Connected peers: {}", final_debug1.connected_peers);
-    println!("  Uptime: {} seconds", final_debug1.uptime_seconds);
-    println!("  Memory usage: {} bytes", final_debug1.memory_usage_bytes);
+    println!("  Peer ID: {}", final_debug1.peer_id());
+    println!("  Address count: {}", final_debug1.address_count());
+    println!(
+        "  Discovery node count: {}",
+        final_debug1.discovery_node_count()
+    );
+    println!("  Health status: {}", final_debug1.health_status());
 
     println!("Node 2 final status:");
-    println!("  Connected peers: {}", final_debug2.connected_peers);
-    println!("  Uptime: {} seconds", final_debug2.uptime_seconds);
-    println!("  Memory usage: {} bytes", final_debug2.memory_usage_bytes);
+    println!("  Peer ID: {}", final_debug2.peer_id());
+    println!("  Address count: {}", final_debug2.address_count());
+    println!(
+        "  Discovery node count: {}",
+        final_debug2.discovery_node_count()
+    );
+    println!("  Health status: {}", final_debug2.health_status());
 
     // Get storage information
     println!("\n=== Storage Information ===");

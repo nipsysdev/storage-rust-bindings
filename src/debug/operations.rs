@@ -39,26 +39,44 @@ impl std::fmt::Display for LogLevel {
 /// Debug information about the node
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DebugInfo {
-    /// Node version
-    pub version: String,
-    /// Node revision
-    pub revision: String,
     /// Node peer ID
-    pub peer_id: String,
-    /// Repository path
-    pub repo: String,
+    pub id: String,
+    /// Node addresses
+    pub addrs: Vec<String>,
     /// Storage Provider Reputation (SPR)
     pub spr: String,
-    /// Current log level
-    pub log_level: String,
-    /// Number of connected peers
-    pub connected_peers: usize,
-    /// Uptime in seconds
-    pub uptime_seconds: u64,
-    /// Memory usage in bytes
-    pub memory_usage_bytes: u64,
-    /// Additional debug information
-    pub extra: Option<serde_json::Value>,
+    /// Announce addresses
+    #[serde(rename = "announceAddresses")]
+    pub announce_addresses: Vec<String>,
+    /// Discovery table information
+    pub table: DiscoveryTable,
+}
+
+/// Discovery table information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiscoveryTable {
+    /// Local node information
+    #[serde(rename = "localNode")]
+    pub local_node: LocalNodeInfo,
+    /// Remote nodes in the table
+    pub nodes: Vec<serde_json::Value>,
+}
+
+/// Local node information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LocalNodeInfo {
+    /// Node ID
+    #[serde(rename = "nodeId")]
+    pub node_id: String,
+    /// Peer ID
+    #[serde(rename = "peerId")]
+    pub peer_id: String,
+    /// Node record
+    pub record: String,
+    /// Bind address
+    pub address: String,
+    /// Whether the node has been seen
+    pub seen: bool,
 }
 
 /// Detailed peer record for debugging
@@ -282,26 +300,21 @@ mod tests {
         let info = debug_info_result.unwrap();
 
         // Verify the structure of debug info
-        assert!(!info.version.is_empty(), "Version should not be empty");
-        assert!(!info.revision.is_empty(), "Revision should not be empty");
-        assert!(!info.peer_id.is_empty(), "Peer ID should not be empty");
-        assert!(!info.repo.is_empty(), "Repo path should not be empty");
+        assert!(!info.id.is_empty(), "Peer ID should not be empty");
         assert!(!info.spr.is_empty(), "SPR should not be empty");
-        assert!(!info.log_level.is_empty(), "Log level should not be empty");
+        assert!(
+            !info.table.local_node.node_id.is_empty(),
+            "Local node ID should not be empty"
+        );
 
         // Verify numeric values are reasonable
-        // Note: These comparisons are always true for unsigned types but kept for documentation
         assert!(
-            info.uptime_seconds > 0 || info.uptime_seconds == 0,
-            "Uptime should be valid"
+            !info.addrs.is_empty() || info.addrs.is_empty(),
+            "Addresses should be valid"
         );
         assert!(
-            info.memory_usage_bytes > 0 || info.memory_usage_bytes == 0,
-            "Memory usage should be valid"
-        );
-        assert!(
-            info.connected_peers > 0 || info.connected_peers == 0,
-            "Connected peers should be valid"
+            !info.announce_addresses.is_empty() || info.announce_addresses.is_empty(),
+            "Announce addresses should be valid"
         );
 
         node.stop().unwrap();
@@ -327,8 +340,11 @@ mod tests {
         );
 
         let info = debug_info_result.unwrap();
-        assert!(!info.version.is_empty(), "Version should not be empty");
-        assert!(!info.peer_id.is_empty(), "Peer ID should not be empty");
+        assert!(!info.id.is_empty(), "Peer ID should not be empty");
+        assert!(
+            !info.table.local_node.node_id.is_empty(),
+            "Local node ID should not be empty"
+        );
 
         node.destroy().unwrap();
     }
@@ -543,43 +559,41 @@ mod tests {
 
         // Create a test debug info to verify structure
         let test_debug_info = DebugInfo {
-            version: "1.0.0".to_string(),
-            revision: "abc123".to_string(),
-            peer_id: "12D3KooWExamplePeer".to_string(),
-            repo: "/tmp/codex".to_string(),
-            spr: "0.95".to_string(),
-            log_level: "info".to_string(),
-            connected_peers: 5,
-            uptime_seconds: 3600,
-            memory_usage_bytes: 1024 * 1024 * 100, // 100 MB
-            extra: Some(serde_json::json!({
-                "build_info": {
-                    "compiler": "rustc",
-                    "target": "x86_64-unknown-linux-gnu"
-                }
-            })),
+            id: "12D3KooWExamplePeer".to_string(),
+            addrs: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            spr: "spr:test".to_string(),
+            announce_addresses: vec!["/ip4/127.0.0.1/tcp/8080".to_string()],
+            table: DiscoveryTable {
+                local_node: LocalNodeInfo {
+                    node_id: "test_node_id".to_string(),
+                    peer_id: "12D3KooWExamplePeer".to_string(),
+                    record: "test_record".to_string(),
+                    address: "127.0.0.1:8080".to_string(),
+                    seen: true,
+                },
+                nodes: vec![],
+            },
         };
 
         // Verify the debug info can be serialized and deserialized
         let json = serde_json::to_string(&test_debug_info).unwrap();
         let deserialized: DebugInfo = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(test_debug_info.version, deserialized.version);
-        assert_eq!(test_debug_info.revision, deserialized.revision);
-        assert_eq!(test_debug_info.peer_id, deserialized.peer_id);
-        assert_eq!(test_debug_info.repo, deserialized.repo);
+        assert_eq!(test_debug_info.id, deserialized.id);
+        assert_eq!(test_debug_info.addrs, deserialized.addrs);
         assert_eq!(test_debug_info.spr, deserialized.spr);
-        assert_eq!(test_debug_info.log_level, deserialized.log_level);
         assert_eq!(
-            test_debug_info.connected_peers,
-            deserialized.connected_peers
+            test_debug_info.announce_addresses,
+            deserialized.announce_addresses
         );
-        assert_eq!(test_debug_info.uptime_seconds, deserialized.uptime_seconds);
         assert_eq!(
-            test_debug_info.memory_usage_bytes,
-            deserialized.memory_usage_bytes
+            test_debug_info.table.local_node.node_id,
+            deserialized.table.local_node.node_id
         );
-        assert_eq!(test_debug_info.extra, deserialized.extra);
+        assert_eq!(
+            test_debug_info.table.local_node.peer_id,
+            deserialized.table.local_node.peer_id
+        );
 
         node.stop().unwrap();
         node.destroy().unwrap();
@@ -729,7 +743,7 @@ mod tests {
         assert!(debug_info_result.is_ok());
 
         let debug_info = debug_info_result.unwrap();
-        assert_eq!(debug_info.log_level, "error");
+        assert!(!debug_info.id.is_empty());
 
         node.stop().unwrap();
         node.destroy().unwrap();
