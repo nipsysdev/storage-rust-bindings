@@ -25,7 +25,6 @@ fn determine_linking_mode() -> LinkingMode {
 /// Ensure git submodules are initialized and updated
 fn ensure_submodules(nim_codex_dir: &PathBuf) {
     if !nim_codex_dir.exists() {
-        println!("cargo:warning=Initializing git submodules...");
         let status = Command::new("git")
             .args(&["submodule", "update", "--init", "--recursive"])
             .status()
@@ -34,14 +33,11 @@ fn ensure_submodules(nim_codex_dir: &PathBuf) {
         if !status.success() {
             panic!("Failed to initialize git submodules");
         }
-        println!("cargo:warning=Git submodules initialized successfully");
     }
 }
 
 /// Build libcodex with static linking
 fn build_libcodex_static(nim_codex_dir: &PathBuf) {
-    println!("cargo:warning=Building libcodex with static linking...");
-
     // Get CODEX_LIB_PARAMS from environment if set
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
 
@@ -65,14 +61,10 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
     if !status.success() {
         panic!("Failed to build libcodex with static linking");
     }
-
-    println!("cargo:warning=libcodex built successfully with static linking");
 }
 
 /// Build libcodex with dynamic linking
 fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
-    println!("cargo:warning=Building libcodex with dynamic linking...");
-
     // Get CODEX_LIB_PARAMS from environment if set
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
 
@@ -91,8 +83,6 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
     if !status.success() {
         panic!("Failed to build libcodex with dynamic linking");
     }
-
-    println!("cargo:warning=libcodex built successfully with dynamic linking");
 }
 
 /// Ensure libcodex is built (check if it exists)
@@ -188,8 +178,6 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     // Provide dummy symbols for missing Nim runtime functions
     println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
     println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
-
-    println!("cargo:warning=Using static libcodex");
 }
 
 /// Link dynamic library
@@ -199,8 +187,6 @@ fn link_dynamic_library(lib_dir: &PathBuf) {
     // Add rpath so the library can be found without LD_LIBRARY_PATH
     let lib_dir_abs = std::fs::canonicalize(lib_dir).unwrap_or_else(|_| lib_dir.to_path_buf());
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir_abs.display());
-
-    println!("cargo:warning=Using dynamic libcodex");
 }
 
 fn main() {
@@ -213,12 +199,10 @@ fn main() {
 
     match linking_mode {
         LinkingMode::Static => {
-            println!("cargo:warning=Building with static linking...");
             ensure_libcodex(&nim_codex_dir, &lib_dir, LinkingMode::Static);
             link_static_library(&nim_codex_dir, &lib_dir);
         }
         LinkingMode::Dynamic => {
-            println!("cargo:warning=Building with dynamic linking...");
             ensure_libcodex(&nim_codex_dir, &lib_dir, LinkingMode::Dynamic);
             link_dynamic_library(&lib_dir);
         }
