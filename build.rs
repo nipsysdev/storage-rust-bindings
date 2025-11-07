@@ -2,6 +2,26 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
+#[derive(Debug, Clone, Copy)]
+enum LinkingMode {
+    Static,
+    Dynamic,
+}
+
+fn determine_linking_mode() -> LinkingMode {
+    let static_enabled = cfg!(feature = "static-linking");
+    let dynamic_enabled = cfg!(feature = "dynamic-linking");
+
+    match (static_enabled, dynamic_enabled) {
+        (true, false) => LinkingMode::Static,
+        (false, true) => LinkingMode::Dynamic,
+        (false, false) => LinkingMode::Static, // Default
+        (true, true) => {
+            panic!("Cannot enable both 'static-linking' and 'dynamic-linking' features simultaneously. Please choose one.");
+        }
+    }
+}
+
 /// Ensure git submodules are initialized and updated
 fn ensure_submodules(nim_codex_dir: &PathBuf) {
     if !nim_codex_dir.exists() {
@@ -18,14 +38,9 @@ fn ensure_submodules(nim_codex_dir: &PathBuf) {
     }
 }
 
-/// Ensure libcodex is built
-fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf) {
-    // Check if libcodex already exists
-    if lib_dir.join("libcodex.a").exists() || lib_dir.join("libcodex.so").exists() {
-        return;
-    }
-
-    println!("cargo:warning=Building libcodex...");
+/// Build libcodex with static linking
+fn build_libcodex_static(nim_codex_dir: &PathBuf) {
+    println!("cargo:warning=Building libcodex with static linking...");
 
     // Get CODEX_LIB_PARAMS from environment if set
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
@@ -48,108 +63,169 @@ fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf) {
         .expect("Failed to execute make command. Make sure make is installed and in PATH.");
 
     if !status.success() {
-        panic!("Failed to build libcodex");
+        panic!("Failed to build libcodex with static linking");
     }
 
-    println!("cargo:warning=libcodex built successfully");
+    println!("cargo:warning=libcodex built successfully with static linking");
+}
+
+/// Build libcodex with dynamic linking
+fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
+    println!("cargo:warning=Building libcodex with dynamic linking...");
+
+    // Get CODEX_LIB_PARAMS from environment if set
+    let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
+
+    let mut make_cmd = Command::new("make");
+    make_cmd.args(&["-C", &nim_codex_dir.to_string_lossy(), "libcodex"]);
+
+    // Add custom parameters if provided
+    if !codex_params.is_empty() {
+        make_cmd.env("CODEX_LIB_PARAMS", &codex_params);
+    }
+
+    let status = make_cmd
+        .status()
+        .expect("Failed to execute make command. Make sure make is installed and in PATH.");
+
+    if !status.success() {
+        panic!("Failed to build libcodex with dynamic linking");
+    }
+
+    println!("cargo:warning=libcodex built successfully with dynamic linking");
+}
+
+/// Ensure libcodex is built (check if it exists)
+fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf, linking_mode: LinkingMode) {
+    // Check if libcodex already exists
+    let lib_exists = match linking_mode {
+        LinkingMode::Static => lib_dir.join("libcodex.a").exists(),
+        LinkingMode::Dynamic => lib_dir.join("libcodex.so").exists(),
+    };
+
+    if lib_exists {
+        return;
+    }
+
+    match linking_mode {
+        LinkingMode::Static => build_libcodex_static(nim_codex_dir),
+        LinkingMode::Dynamic => build_libcodex_dynamic(nim_codex_dir),
+    }
+}
+
+/// Link static library and its dependencies
+fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
+    // Link against additional required static libraries FIRST
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("vendor/nim-libbacktrace/vendor/libbacktrace-upstream/.libs")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=backtrace");
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=circom_compat_ffi");
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("vendor/nim-nat-traversal/vendor/libnatpmp-upstream")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=natpmp");
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=miniupnpc");
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("vendor/nim-libbacktrace/install/usr/lib")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=backtracenim");
+
+    println!(
+        "cargo:rustc-link-search=native={}",
+        nim_codex_dir
+            .join("nimcache/release/libcodex/vendor_leopard")
+            .display()
+    );
+    println!("cargo:rustc-link-lib=static=libleopard");
+
+    // Now link against libcodex
+    println!("cargo:rustc-link-lib=static=codex");
+
+    // Link against C++ standard library for libcodex C++ dependencies
+    println!("cargo:rustc-link-lib=stdc++");
+
+    // Link against OpenMP for leopard library
+    println!("cargo:rustc-link-lib=dylib=gomp");
+
+    // Link against Rust's built-in stack probe for wasmer
+    println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
+    println!("cargo:rustc-link-arg=-Wl,--defsym=__rust_probestack=0");
+
+    // Provide dummy symbols for missing Nim runtime functions
+    println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
+    println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
+
+    println!("cargo:warning=Using static libcodex");
+}
+
+/// Link dynamic library
+fn link_dynamic_library(lib_dir: &PathBuf) {
+    println!("cargo:rustc-link-lib=dylib=codex");
+    println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
+    println!("cargo:warning=Using dynamic libcodex");
 }
 
 fn main() {
-    // Paths for nim-codex submodule
+    let linking_mode = determine_linking_mode();
     let nim_codex_dir = PathBuf::from("vendor/nim-codex");
     let lib_dir = nim_codex_dir.join("build");
     let include_dir = nim_codex_dir.join("nimcache/release/libcodex");
 
-    // Initialize git submodules if needed
     ensure_submodules(&nim_codex_dir);
 
-    // Build libcodex if it doesn't exist
-    ensure_libcodex(&nim_codex_dir, &lib_dir);
+    match linking_mode {
+        LinkingMode::Static => {
+            println!("cargo:warning=Building with static linking...");
+            ensure_libcodex(&nim_codex_dir, &lib_dir, LinkingMode::Static);
+            link_static_library(&nim_codex_dir, &lib_dir);
+        }
+        LinkingMode::Dynamic => {
+            println!("cargo:warning=Building with dynamic linking...");
+            ensure_libcodex(&nim_codex_dir, &lib_dir, LinkingMode::Dynamic);
+            link_dynamic_library(&lib_dir);
+        }
+    }
 
+    // Tell cargo to look for libraries in the build directory
+    println!("cargo:rustc-link-search=native={}", lib_dir.display());
+
+    generate_bindings(&include_dir, &nim_codex_dir);
+}
+
+/// Generate Rust bindings from C headers
+fn generate_bindings(include_dir: &PathBuf, nim_codex_dir: &PathBuf) {
     // Verify include directory exists
     if !include_dir.exists() {
         panic!(
             "Include directory not found at {}. Please ensure libcodex was built successfully.",
             include_dir.display()
         );
-    }
-
-    // Tell cargo to look for libraries in the build directory
-    println!("cargo:rustc-link-search=native={}", lib_dir.display());
-
-    // Try static linking first, fallback to dynamic
-    if lib_dir.join("libcodex.a").exists() {
-        // Link against additional required static libraries FIRST
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("vendor/nim-libbacktrace/vendor/libbacktrace-upstream/.libs")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=backtrace");
-
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=circom_compat_ffi");
-
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("vendor/nim-nat-traversal/vendor/libnatpmp-upstream")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=natpmp");
-
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=miniupnpc");
-
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("vendor/nim-libbacktrace/install/usr/lib")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=backtracenim");
-
-        println!(
-            "cargo:rustc-link-search=native={}",
-            nim_codex_dir
-                .join("nimcache/release/libcodex/vendor_leopard")
-                .display()
-        );
-        println!("cargo:rustc-link-lib=static=libleopard");
-
-        // Now link against libcodex
-        println!("cargo:rustc-link-lib=static=codex");
-
-        // Link against C++ standard library for libcodex C++ dependencies
-        println!("cargo:rustc-link-lib=stdc++");
-
-        // Link against OpenMP for leopard library
-        println!("cargo:rustc-link-lib=dylib=gomp");
-
-        // Link against Rust's built-in stack probe for wasmer
-        println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
-        println!("cargo:rustc-link-arg=-Wl,--defsym=__rust_probestack=0");
-
-        // Provide dummy symbols for missing Nim runtime functions
-        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
-        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
-
-        println!("cargo:warning=Using static libcodex");
-    } else {
-        println!("cargo:rustc-link-lib=dylib=codex");
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir.display());
-        println!("cargo:warning=Using dynamic libcodex");
     }
 
     // The bindgen::Builder is the main entry point

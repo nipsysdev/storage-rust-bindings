@@ -12,7 +12,7 @@ codex-rust-bindings = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
 
-For an example on how to use this package, please take a look at our [examples](./examples/) directory.
+For an example on how to use this package, please take a look at the [examples](./examples/) directory.
 
 ## Development
 
@@ -111,7 +111,40 @@ CODEX_LIB_PARAMS="-d:codex_enable_api_debug_peers=true" cargo build --release
 CODEX_LIB_PARAMS="-d:your_flag=true" cargo build
 ```
 
-The release process is defined [here](./RELEASE.md).
+## Linking Modes
+
+This crate supports two linking modes via Cargo features:
+
+### Static Linking (Default)
+
+```bash
+cargo build
+# or explicitly
+cargo build --features static-linking
+```
+
+- Self-contained binary
+- No runtime dependencies
+- Recommended for production
+
+### Dynamic Linking
+
+```bash
+cargo build --features dynamic-linking
+```
+
+- Smaller binary size
+- Requires libcodex.so at runtime
+- Useful for development
+
+### In Dependencies
+
+Add to your `Cargo.toml`:
+
+```toml
+[dependencies]
+codex-rust-bindings = { version = "0.1", features = ["dynamic-linking"] }
+```
 
 ## API
 
