@@ -4,13 +4,49 @@ This repository provides Rust bindings for the Codex library, enabling seamless 
 
 ## Usage
 
-Add this to your `Cargo.toml`:
+Include in your Cargo project:
 
 ```toml
 [dependencies]
 codex-rust-bindings = "0.1.0"
 tokio = { version = "1.0", features = ["full"] }
 ```
+
+For an example on how to use this package, please take a look at our [examples](./examples/) directory.
+
+## Development
+
+To build the required dependencies for this module, the `make` command needs to be executed.
+If you are integrating this module into another project via `cargo add`, ensure that you navigate
+to the `codex-rust-bindings` module directory and run the `make` commands.
+
+### Steps to install
+
+Follow these steps to install and set up the module:
+
+1. Make sure your system has the [prerequisites](https://github.com/codex-storage/nim-codex) to run a local Codex node.
+
+2. Fetch the dependencies:
+
+   ```
+   make update
+   ```
+
+3. Build the library:
+   ```
+   make libcodex
+   ```
+
+You can pass flags to the Codex building step by using `CODEX_LIB_PARAMS`. For example,
+if you want to enable debug API for peers, you can build the library using:
+
+```
+CODEX_LIB_PARAMS="-d:codex_enable_api_debug_peers=true" make libcodex
+```
+
+Now the module is ready for use in your project.
+
+The release process is defined [here](./RELEASE.md).
 
 ## API
 
@@ -77,6 +113,8 @@ The `filepath` should contain the data's name with its extension, because Codex 
 infer the MIME type.
 
 An `on_progress` callback is available to receive progress updates and notify the user.
+The total size of the reader is determined via `stat` when it wraps a file, or from the buffer length otherwise.
+From there, the callback can compute and report the percentage complete.
 
 The `upload_reader` returns the cid of the content uploaded.
 
@@ -86,11 +124,15 @@ use std::io::Cursor;
 
 let data = b"Hello World!";
 let reader = Cursor::new(data);
+let on_progress = |progress| {
+    println!("Upload progress: {} bytes ({}%)",
+        progress.bytes_uploaded,
+        (progress.percentage * 100.0) as u32);
+};
+
 let options = UploadOptions::new()
     .filepath("hello.txt")
-    .on_progress(|read, total, percent, error| {
-        // Do something with the data
-    });
+    .on_progress(on_progress);
 
 let cid = upload_reader(&node, options, reader)?;
 ```
@@ -107,11 +149,15 @@ The `upload_file` returns the cid of the content uploaded.
 ```rust
 use codex_rust_bindings::{upload_file, UploadOptions};
 
+let on_progress = |progress| {
+    println!("Upload progress: {} bytes ({}%)",
+        progress.bytes_uploaded,
+        (progress.percentage * 100.0) as u32);
+};
+
 let options = UploadOptions::new()
     .filepath("./testdata/hello.txt")
-    .on_progress(|read, total, percent, error| {
-        // Do something with the data
-    });
+    .on_progress(on_progress);
 
 let cid = upload_file(&node, options)?;
 ```
@@ -128,7 +174,6 @@ use codex_rust_bindings::{upload_init, upload_chunk, upload_finalize, UploadOpti
 let session_id = upload_init(&node, &UploadOptions::new().filepath("hello.txt"))?;
 
 upload_chunk(&node, &session_id, b"Hello ")?;
-
 upload_chunk(&node, &session_id, b"World!")?;
 
 let cid = upload_finalize(&node, &session_id)?;
@@ -170,12 +215,14 @@ use std::fs::File;
 let file = File::create("testdata/hello.downloaded.writer.txt")?;
 let options = DownloadStreamOptions::new("QmExampleCID...")
     .writer(file)
-    .dataset_size(len)
-    .on_progress(|read, total, percent, error| {
-        // Handle progress
+    .filepath("testdata/hello.downloaded.txt")
+    .on_progress(|progress| {
+        println!("Download progress: {} bytes ({}%)",
+            progress.bytes_downloaded,
+            (progress.percentage * 100.0) as u32);
     });
 
-download_stream(&node, "QmExampleCID...", options)?;
+let result = download_stream(&node, options)?;
 ```
 
 #### chunks
@@ -191,9 +238,10 @@ to terminate the download session.
 use codex_rust_bindings::{download_init, download_chunk, download_cancel, DownloadInitOptions};
 
 let cid = "QmExampleCID...";
-download_init(&node, cid, &DownloadInitOptions::new())?;
+let session_id = download_init(&node, cid, &DownloadInitOptions::new())?;
 
 let chunk = download_chunk(&node, cid)?;
+// Process chunk...
 
 download_cancel(&node, cid)?;
 ```
@@ -231,7 +279,7 @@ let addrs = vec![
     "/ip4/192.168.1.100/udp/8080/quic".to_string(),
 ];
 
-connect(&node, peer_id, &addrs)?;
+connect(&node, peer_id, &addrs).await?;
 ```
 
 ### Debug
@@ -242,27 +290,30 @@ Several methods are available to debug your node:
 use codex_rust_bindings::{debug, update_log_level, peer_debug, LogLevel};
 
 // Get node info
-let info = debug(&node)?;
+let info = debug(&node).await?;
 
 // Update the chronicles level log on runtime
-update_log_level(&node, LogLevel::Debug)?;
+update_log_level(&node, LogLevel::Debug).await?;
 
 let peer_id = "12D3KooWExamplePeerId";
 let record = peer_debug(&node, peer_id)?;
 ```
 
-`peer_debug` is only available if you built with the appropriate debug flags.
+`peer_debug` is only available if you built with `-d:codex_enable_api_debug_peers=true` flag.
 
 ### Async Support
 
-All operations have async versions available:
+All operations have async versions available. If you're using async Rust, you can use the async variants:
 
 ```rust
 use codex_rust_bindings::{CodexNode, CodexConfig};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let config = CodexConfig::default();
+    let config = CodexConfig::new()
+        .data_dir("/path/to/data")
+        .block_retries(10);
+
     let mut node = CodexNode::new(config)?;
 
     // Start the node asynchronously
@@ -278,46 +329,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-## Building
+### Context and cancellation
 
-To build the library, you need to have the libcodex C library installed. The build system will automatically detect it and generate the necessary bindings.
-
-```bash
-# Build the library
-cargo build
-
-# Build with examples
-cargo build --examples
-
-# Run tests
-cargo test
-
-# Run the basic example
-cargo run --example basic_usage
-```
-
-## Requirements
-
-- Rust 1.70 or later
-- libcodex C library
-- pkg-config (for detecting libcodex)
-
-## License
-
-This project is licensed under either of:
-
-- Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-  https://www.apache.org/licenses/LICENSE-2.0)
-- MIT license ([LICENSE-MIT](LICENSE-MIT) or
-  https://opensource.org/licenses/MIT)
-
-at your option.
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-## Related Projects
-
-- [Codex Go Bindings](https://github.com/codex-storage/codex-go-bindings) - Go bindings for the Codex library
-- [Codex](https://github.com/codex-storage/codex) - The main Codex project
+Rust async contexts are exposed only on the long-running operations as `upload_reader`, `upload_file`, and `download_stream`. If the
+context is cancelled, those methods cancel the active upload or download. Short lived API calls don't take a context
+because they usually finish before a cancellation signal could matter.
