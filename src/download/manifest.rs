@@ -61,7 +61,6 @@ pub async fn download_manifest(node: &CodexNode, cid: &str) -> Result<Manifest> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::node::config::CodexConfig;
     use serde_json::json;
 
     #[test]
