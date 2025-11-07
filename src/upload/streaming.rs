@@ -2,7 +2,6 @@
 //!
 //! This module contains streaming-specific upload logic and utilities.
 
-use crate::error::{CodexError, Result};
 use crate::upload::types::{UploadOptions, UploadProgress};
 use std::io::Read;
 use std::pin::Pin;
@@ -232,7 +231,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::upload::types::UploadStrategy;
     use std::io::Cursor;
 
     #[test]

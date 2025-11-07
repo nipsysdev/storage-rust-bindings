@@ -161,25 +161,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✓ Correctly failed with empty peer ID: {}", e),
     }
 
-    // Test unimplemented functions
-    println!("\n=== Testing Unimplemented Functions ===");
-
-    // Test disconnect (not implemented)
-    println!("Testing disconnect function...");
-    let disconnect_result = codex_rust_bindings::disconnect(&node, test_peer_id).await;
-    match disconnect_result {
-        Ok(_) => println!("  ✗ Disconnect unexpectedly succeeded"),
-        Err(e) => println!("  ✓ Disconnect correctly not implemented: {}", e),
-    }
-
-    // Test list peers (not implemented)
-    println!("Testing list_peers function...");
-    let list_peers_result = codex_rust_bindings::list_peers(&node).await;
-    match list_peers_result {
-        Ok(_) => println!("  ✗ list_peers unexpectedly succeeded"),
-        Err(e) => println!("  ✓ list_peers correctly not implemented: {}", e),
-    }
-
     // Test concurrent P2P operations
     println!("\n=== Testing Concurrent P2P Operations ===");
     let peer_id_future1 = codex_rust_bindings::get_peer_id(&node);

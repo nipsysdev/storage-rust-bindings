@@ -75,25 +75,6 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
     Ok(())
 }
 
-/// Disconnect from a peer
-///
-/// # Arguments
-///
-/// * `node` - The Codex node to use
-/// * `peer_id` - The peer ID to disconnect from
-///
-/// # Returns
-///
-/// Ok(()) if the disconnection was successful, or an error
-///
-/// Note: This function is not available in the current C API.
-/// Use the debug operations to manage peer connections.
-pub async fn disconnect(_node: &CodexNode, _peer_id: &str) -> Result<()> {
-    Err(CodexError::library_error(
-        "disconnect is not available in the current C API",
-    ))
-}
-
 /// Connect to multiple peers concurrently
 ///
 /// # Arguments
@@ -224,68 +205,6 @@ pub fn validate_addresses(addresses: &[String]) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Get connection statistics
-///
-/// # Arguments
-///
-/// * `node` - The Codex node to use
-///
-/// # Returns
-///
-/// Connection statistics
-pub async fn connection_stats(node: &CodexNode) -> Result<ConnectionStats> {
-    // This would typically call a C function to get connection stats
-    // For now, we'll return a placeholder
-
-    // In a real implementation, you might call something like:
-    // let stats = unsafe { codex_connection_stats(node.ctx as *mut _) };
-
-    Ok(ConnectionStats {
-        active_connections: 0,
-        total_connections: 0,
-        failed_connections: 0,
-        average_latency_ms: 0.0,
-        last_connection_time: None,
-    })
-}
-
-/// Connection statistics
-#[derive(Debug, Clone)]
-pub struct ConnectionStats {
-    /// Number of active connections
-    pub active_connections: usize,
-    /// Total number of connections attempted
-    pub total_connections: usize,
-    /// Number of failed connections
-    pub failed_connections: usize,
-    /// Average latency in milliseconds
-    pub average_latency_ms: f64,
-    /// Last successful connection time
-    pub last_connection_time: Option<chrono::DateTime<chrono::Utc>>,
-}
-
-impl ConnectionStats {
-    /// Get the success rate as a percentage
-    pub fn success_rate(&self) -> f64 {
-        if self.total_connections == 0 {
-            0.0
-        } else {
-            (self.total_connections - self.failed_connections) as f64
-                / self.total_connections as f64
-                * 100.0
-        }
-    }
-
-    /// Get the failure rate as a percentage
-    pub fn failure_rate(&self) -> f64 {
-        if self.total_connections == 0 {
-            0.0
-        } else {
-            self.failed_connections as f64 / self.total_connections as f64 * 100.0
-        }
-    }
 }
 
 #[cfg(test)]
@@ -453,13 +372,6 @@ mod tests {
         node.start().unwrap();
 
         let peer_id = "12D3KooWExamplePeer";
-        let result = disconnect(&node, peer_id).await;
-        assert!(result.is_err());
-
-        let error = result.unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("not available in the current C API"));
 
         node.stop().unwrap();
         node.destroy().unwrap();
@@ -505,16 +417,6 @@ mod tests {
 
         let mut node = CodexNode::new(config).unwrap();
         node.start().unwrap();
-
-        let stats = connection_stats(&node).await;
-        assert!(stats.is_ok());
-
-        let stats = stats.unwrap();
-        assert_eq!(stats.active_connections, 0);
-        assert_eq!(stats.total_connections, 0);
-        assert_eq!(stats.failed_connections, 0);
-        assert_eq!(stats.success_rate(), 0.0);
-        assert_eq!(stats.failure_rate(), 0.0);
 
         node.stop().unwrap();
         node.destroy().unwrap();
@@ -584,30 +486,5 @@ mod tests {
         for addresses in invalid_addresses {
             assert!(validate_addresses(&addresses).is_err());
         }
-    }
-
-    #[test]
-    fn test_connection_stats_methods() {
-        let stats = ConnectionStats {
-            active_connections: 5,
-            total_connections: 10,
-            failed_connections: 2,
-            average_latency_ms: 50.0,
-            last_connection_time: Some(chrono::Utc::now()),
-        };
-
-        assert_eq!(stats.success_rate(), 80.0);
-        assert_eq!(stats.failure_rate(), 20.0);
-
-        let empty_stats = ConnectionStats {
-            active_connections: 0,
-            total_connections: 0,
-            failed_connections: 0,
-            average_latency_ms: 0.0,
-            last_connection_time: None,
-        };
-
-        assert_eq!(empty_stats.success_rate(), 0.0);
-        assert_eq!(empty_stats.failure_rate(), 0.0);
     }
 }

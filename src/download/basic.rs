@@ -11,7 +11,6 @@ use crate::ffi::{
 };
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
-use std::ptr;
 
 /// Initialize a download operation
 ///
@@ -91,16 +90,12 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
     let future = CallbackFuture::new();
 
     // Set up a progress callback to capture the chunk data
+    // This follows the same pattern as the Go implementation
     future.context.set_progress_callback(move |_len, chunk| {
-        println!(
-            "Download progress callback: len={}, chunk={:?}",
-            _len,
-            chunk.is_some()
-        );
         if let Some(chunk_bytes) = chunk {
             let mut data = chunk_data_clone.lock().unwrap();
+            data.clear(); // Clear any previous data
             data.extend_from_slice(chunk_bytes);
-            println!("Added {} bytes to chunk data", chunk_bytes.len());
         }
     });
 

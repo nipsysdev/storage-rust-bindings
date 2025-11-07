@@ -1,7 +1,16 @@
 //! Download operations for Codex
 //!
-//! This module provides functionality for downloading data from the Codex network
-//! with support for streaming and chunk-based downloads with progress tracking.
+//! This module provides core download functionality that directly maps to the C API.
+//! It includes operations for downloading content, managing download sessions,
+//! and retrieving manifest information.
+//!
+//! ## Core Functions
+//!
+//! - [`download_init()`] - Initialize a download session
+//! - [`download_chunk()`] - Download a chunk of content
+//! - [`download_cancel()`] - Cancel an active download
+//! - [`download_stream()`] - Stream content directly to a file or writer
+//! - [`download_manifest()`] - Download manifest information for content
 
 pub mod basic;
 pub mod manifest;
@@ -12,10 +21,7 @@ pub mod types;
 pub use basic::{download_cancel, download_chunk, download_init};
 
 // Re-export manifest operations
-pub use manifest::{
-    download_manifest, estimate_download_time, get_optimal_chunk_size, is_manifest_accessible,
-    validate_manifest,
-};
+pub use manifest::download_manifest;
 
 // Re-export streaming operations
 pub use streaming::{download_stream, DownloadProgressExt, StreamingDownloadWriter};

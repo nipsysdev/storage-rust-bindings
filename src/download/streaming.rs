@@ -8,7 +8,7 @@ use crate::download::types::{
     DownloadOptions, DownloadProgress, DownloadResult, DownloadStreamOptions,
 };
 use crate::error::{CodexError, Result};
-use crate::ffi::{free_c_string, string_to_c_string};
+use crate::ffi::{codex_download_stream, free_c_string, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 use std::io::Write;
@@ -40,16 +40,6 @@ pub async fn download_stream(
     let start_time = std::time::Instant::now();
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024); // 1 MB default
 
-    // Get dataset size if auto-detect is enabled
-    let _dataset_size = if options.dataset_size_auto {
-        match crate::download::manifest::download_manifest(node, cid).await {
-            Ok(manifest) => Some(manifest.size),
-            Err(_) => None,
-        }
-    } else {
-        options.dataset_size
-    };
-
     // Use a shared container to store the downloaded data
     use std::sync::Mutex;
     let total_bytes = Arc::new(Mutex::new(0usize));
@@ -72,7 +62,6 @@ pub async fn download_stream(
     let context = future.context.clone();
 
     // Set up a progress callback to capture the downloaded data and write it
-    let _context_clone = context.clone();
     let file_handle_clone = file_handle.clone();
 
     // For the writer, we need to handle it differently since we can't store it directly
@@ -93,13 +82,7 @@ pub async fn download_stream(
         None
     };
 
-    context.set_progress_callback(move |len, chunk| {
-        println!(
-            "Download stream progress: len={}, chunk={:?}",
-            len,
-            chunk.is_some()
-        );
-
+    context.set_progress_callback(move |_len, chunk| {
         if let Some(chunk_bytes) = chunk {
             let mut total = total_bytes_clone.lock().unwrap();
             *total += chunk_bytes.len();
@@ -129,24 +112,16 @@ pub async fn download_stream(
     };
 
     // Initialize the download first (required by the C library)
-    println!(
-        "[{}] Initializing download for CID: {}",
-        chrono::Utc::now(),
-        cid
-    );
     let download_options = DownloadOptions::new(cid)
         .chunk_size(chunk_size)
         .timeout(options.timeout.unwrap_or(300))
         .verify(options.verify);
 
     download_init(node, cid, &download_options).await?;
-    println!("[{}] Download initialized successfully", chrono::Utc::now());
 
     // Call the C function to stream the download
-    println!("[{}] Starting download stream...", chrono::Utc::now());
-    println!("[{}] Calling codex_download_stream...", chrono::Utc::now());
     let result = unsafe {
-        crate::ffi::codex_download_stream(
+        codex_download_stream(
             node.ctx as *mut _,
             c_cid,
             chunk_size,
@@ -156,11 +131,6 @@ pub async fn download_stream(
             future.context_ptr() as *mut c_void,
         )
     };
-    println!(
-        "[{}] codex_download_stream returned: {}",
-        chrono::Utc::now(),
-        result
-    );
 
     // Clean up
     unsafe {
@@ -175,12 +145,7 @@ pub async fn download_stream(
     }
 
     // Wait for the operation to complete
-    println!(
-        "[{}] Waiting for download to complete...",
-        chrono::Utc::now()
-    );
     future.await?;
-    println!("[{}] Download completed!", chrono::Utc::now());
 
     // Close the channel to signal the writer thread to finish
     drop(tx);

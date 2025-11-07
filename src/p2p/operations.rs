@@ -114,45 +114,6 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
     Ok(())
 }
 
-/// Disconnect from a peer
-///
-/// # Arguments
-///
-/// * `node` - The Codex node to use
-/// * `peer_id` - The peer ID to disconnect from
-///
-/// # Returns
-///
-/// Ok(()) if the disconnection was successful, or an error
-/// Disconnect from a peer
-///
-/// Note: This function is not available in the current C API.
-/// Use the debug operations to manage peer connections.
-pub async fn disconnect(_node: &CodexNode, _peer_id: &str) -> Result<()> {
-    Err(CodexError::library_error(
-        "disconnect is not available in the current C API",
-    ))
-}
-
-/// List all connected peers
-///
-/// # Arguments
-///
-/// * `node` - The Codex node to use
-///
-/// # Returns
-///
-/// A vector of peer information for all connected peers
-/// List all connected peers
-///
-/// Note: This function is not available in the current C API.
-/// Use the debug operations to get peer information.
-pub async fn list_peers(_node: &CodexNode) -> Result<Vec<PeerInfo>> {
-    Err(CodexError::library_error(
-        "list_peers is not available in the current C API",
-    ))
-}
-
 /// Get detailed information about a specific peer
 ///
 /// # Arguments
@@ -378,53 +339,6 @@ mod tests {
             // These might fail but should not panic
             assert!(result.is_ok() || result.is_err());
         }
-
-        node.stop().unwrap();
-        node.destroy().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_disconnect_not_implemented() {
-        let temp_dir = tempdir().unwrap();
-        let config = CodexConfig::new()
-            .log_level(LogLevel::Error)
-            .data_dir(temp_dir.path())
-            .storage_quota(100 * 1024 * 1024);
-
-        let mut node = CodexNode::new(config).unwrap();
-        node.start().unwrap();
-
-        let peer_id = "12D3KooWExamplePeer";
-        let result = disconnect(&node, peer_id).await;
-        assert!(result.is_err());
-
-        let error = result.unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("not available in the current C API"));
-
-        node.stop().unwrap();
-        node.destroy().unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_list_peers_not_implemented() {
-        let temp_dir = tempdir().unwrap();
-        let config = CodexConfig::new()
-            .log_level(LogLevel::Error)
-            .data_dir(temp_dir.path())
-            .storage_quota(100 * 1024 * 1024);
-
-        let mut node = CodexNode::new(config).unwrap();
-        node.start().unwrap();
-
-        let peers = list_peers(&node).await;
-        assert!(peers.is_err());
-
-        let error = peers.unwrap_err();
-        assert!(error
-            .to_string()
-            .contains("not available in the current C API"));
 
         node.stop().unwrap();
         node.destroy().unwrap();

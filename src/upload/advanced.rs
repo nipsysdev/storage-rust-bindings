@@ -2,10 +2,13 @@
 //!
 //! This module contains high-level upload operations like upload_reader and upload_file.
 
+use crate::callback::{c_callback, CallbackFuture};
 use crate::error::{CodexError, Result};
+use crate::ffi::{codex_upload_file, free_c_string, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use crate::upload::basic::{upload_cancel, upload_chunk, upload_finalize, upload_init};
 use crate::upload::types::{UploadOptions, UploadProgress, UploadResult};
+use libc::c_void;
 use std::io::Read;
 use std::path::Path;
 
@@ -91,7 +94,7 @@ where
 /// # Returns
 ///
 /// The result of the upload operation
-pub async fn upload_file(node: &CodexNode, mut options: UploadOptions) -> Result<UploadResult> {
+pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<UploadResult> {
     if options.filepath.is_none() {
         return Err(CodexError::invalid_parameter(
             "filepath",
@@ -108,27 +111,48 @@ pub async fn upload_file(node: &CodexNode, mut options: UploadOptions) -> Result
         ));
     }
 
+    let start_time = std::time::Instant::now();
+
     // Get file size for progress tracking
     let file_size = std::fs::metadata(filepath)?.len() as usize;
 
-    // If no total bytes is set in the progress callback, use the file size
-    if options.on_progress.is_some() {
-        let file_size = file_size;
-        let original_callback = options.on_progress.take().unwrap();
-        options.on_progress = Some(Box::new(move |mut progress: UploadProgress| {
-            if progress.total_bytes.is_none() {
-                progress.total_bytes = Some(file_size);
-                progress.percentage = progress.bytes_uploaded as f64 / file_size as f64;
-            }
-            original_callback(progress);
-        }));
+    // Initialize upload session first
+    let session_id = upload_init(node, &options).await?;
+
+    // Create a callback future for the file upload operation
+    let future = CallbackFuture::new();
+
+    let c_session_id = string_to_c_string(&session_id);
+
+    // Call the C function with the context pointer directly
+    let result = unsafe {
+        codex_upload_file(
+            node.ctx as *mut _,
+            c_session_id,
+            Some(c_callback),
+            future.context_ptr() as *mut c_void,
+        )
+    };
+
+    // Clean up
+    unsafe {
+        free_c_string(c_session_id);
     }
 
-    // Open the file
-    let file = std::fs::File::open(filepath)?;
+    if result != 0 {
+        // Cancel the upload on error
+        let _ = upload_cancel(node, &session_id).await;
+        return Err(CodexError::library_error("Failed to upload file"));
+    }
 
-    // Upload the file
-    upload_reader(node, options, file).await
+    // Wait for the operation to complete
+    let cid = future.await?;
+
+    let duration = start_time.elapsed();
+
+    Ok(UploadResult::new(cid, file_size)
+        .duration_ms(duration.as_millis() as u64)
+        .verified(options.verify))
 }
 
 #[cfg(test)]

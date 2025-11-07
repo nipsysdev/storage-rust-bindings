@@ -6,7 +6,7 @@
 //! - Get peer debug information
 
 use codex_rust_bindings::debug::LogLevel;
-use codex_rust_bindings::{network_stats, CodexConfig, CodexNode};
+use codex_rust_bindings::{CodexConfig, CodexNode};
 use tempfile::tempdir;
 
 #[tokio::main]
@@ -148,14 +148,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match whitespace_peer_result {
         Ok(_) => println!("  ✗ Unexpectedly succeeded with whitespace-only peer ID"),
         Err(e) => println!("  ✓ Correctly failed with whitespace-only peer ID: {}", e),
-    }
-
-    // Test network stats (not implemented)
-    println!("\n=== Testing Network Stats (Not Implemented) ===");
-    let network_stats_result = network_stats(&node).await;
-    match network_stats_result {
-        Ok(_) => println!("  ✗ network_stats unexpectedly succeeded"),
-        Err(e) => println!("  ✓ network_stats correctly not implemented: {}", e),
     }
 
     // Test debug operations without starting node

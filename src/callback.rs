@@ -74,7 +74,12 @@ impl CallbackContext {
     }
 
     /// Handle a callback from the C library
-    pub fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
+    ///
+    /// # Safety
+    ///
+    /// This function dereferences raw pointers from the C library.
+    /// The caller must ensure that the pointers are valid.
+    pub unsafe fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
                 let message = unsafe {
@@ -110,7 +115,7 @@ impl CallbackContext {
                 }
             }
             CallbackReturn::Progress => {
-                let len = len as usize;
+                let len = len;
 
                 let chunk = if !msg.is_null() {
                     unsafe { Some(std::slice::from_raw_parts(msg as *const u8, len)) }
@@ -229,7 +234,9 @@ pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, r
 
     if let Some(context) = context {
         // Handle the callback
-        context.handle_callback(ret, msg, len);
+        unsafe {
+            context.handle_callback(ret, msg, len);
+        }
     }
 }
 
@@ -262,7 +269,9 @@ mod tests {
         let context = CallbackContext::new();
 
         // Test success callback
-        context.handle_callback(0, std::ptr::null_mut(), 0);
+        unsafe {
+            context.handle_callback(0, std::ptr::null_mut(), 0);
+        }
         let result = context.get_result().unwrap();
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -273,7 +282,9 @@ mod tests {
         let context = CallbackContext::new();
 
         // Test error callback
-        context.handle_callback(1, std::ptr::null_mut(), 0);
+        unsafe {
+            context.handle_callback(1, std::ptr::null_mut(), 0);
+        }
         let result = context.get_result().unwrap();
         assert!(result.is_err());
 
@@ -298,7 +309,9 @@ mod tests {
 
         // Trigger progress callback
         let test_data = b"test data";
-        context.handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
+        unsafe {
+            context.handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
+        }
 
         // Progress callback should have been called synchronously
         assert!(progress_called.load(Ordering::SeqCst));
@@ -329,9 +342,11 @@ mod tests {
 
         // Trigger progress callback through context
         let test_data = b"test data";
-        future
-            .context
-            .handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
+        unsafe {
+            future
+                .context
+                .handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
+        }
 
         // Progress callback should have been called synchronously
         assert!(progress_called.load(Ordering::SeqCst));
@@ -342,7 +357,9 @@ mod tests {
         let future = CallbackFuture::new();
 
         // Simulate successful callback
-        future.context.handle_callback(0, std::ptr::null_mut(), 0);
+        unsafe {
+            future.context.handle_callback(0, std::ptr::null_mut(), 0);
+        }
 
         // Future should complete successfully
         let result = future.await;
@@ -355,7 +372,9 @@ mod tests {
         let future = CallbackFuture::new();
 
         // Simulate error callback
-        future.context.handle_callback(1, std::ptr::null_mut(), 0);
+        unsafe {
+            future.context.handle_callback(1, std::ptr::null_mut(), 0);
+        }
 
         // Future should complete with error
         let result = future.await;
@@ -383,7 +402,9 @@ mod tests {
         let context = CallbackContext::new();
 
         // Set a result first
-        context.handle_callback(0, std::ptr::null_mut(), 0);
+        unsafe {
+            context.handle_callback(0, std::ptr::null_mut(), 0);
+        }
 
         // Wait should return immediately with the result
         let result = context.wait();

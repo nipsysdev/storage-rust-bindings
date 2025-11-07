@@ -50,7 +50,7 @@ pub mod storage;
 pub mod upload;
 
 // Re-export the main types for convenience
-pub use debug::{debug, network_stats, peer_debug, update_log_level};
+pub use debug::{debug, peer_debug, update_log_level};
 pub use debug::{DebugInfo, PeerRecord};
 pub use download::types::DownloadResult;
 pub use download::{
@@ -59,7 +59,7 @@ pub use download::{
 pub use download::{DownloadOptions, DownloadProgress, DownloadStreamOptions};
 pub use error::{CodexError, Result};
 pub use node::{CodexConfig, CodexNode, LogFormat, LogLevel};
-pub use p2p::{connect, disconnect, get_peer_id, get_peer_info, list_peers, PeerInfo};
+pub use p2p::{connect, get_peer_id, get_peer_info, PeerInfo};
 pub use storage::{delete, exists, fetch, manifests, space, Manifest, Space};
 pub use upload::types::UploadResult;
 pub use upload::{

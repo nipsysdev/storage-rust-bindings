@@ -7,16 +7,10 @@ pub mod discovery;
 pub mod types;
 
 // Re-export connection operations
-pub use connection::{
-    connect, connect_to_multiple, connection_stats, disconnect, validate_addresses,
-    validate_peer_id, ConnectionStats,
-};
+pub use connection::{connect, connect_to_multiple, validate_addresses, validate_peer_id};
 
 // Re-export discovery operations
-pub use discovery::{
-    discover_peers_by_protocol, get_peer_id, get_peer_info, get_peer_reputation, list_peers,
-    network_stats, search_peers, PeerReputation, ReputationLevel,
-};
+pub use discovery::{get_peer_id, get_peer_info};
 
 // Re-export types
-pub use types::{PeerInfo, PeerRecord, PeerSearchCriteria};
+pub use types::{PeerInfo, PeerRecord};

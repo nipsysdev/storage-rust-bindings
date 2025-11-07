@@ -217,8 +217,6 @@ pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
 mod tests {
     use super::*;
     use crate::node::config::CodexConfig;
-    use crate::upload::types::UploadStrategy;
-    use std::sync::Arc;
 
     #[tokio::test]
     async fn test_upload_init() {
