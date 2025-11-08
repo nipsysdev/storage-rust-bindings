@@ -17,23 +17,22 @@
 //! ```rust,no_run
 //! use codex_rust_bindings::{CodexNode, CodexConfig};
 //!
-//! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a configuration
 //!     let config = CodexConfig::default();
-//!     
+//!
 //!     // Create a new node
 //!     let mut node = CodexNode::new(config)?;
-//!     
+//!
 //!     // Start the node
-//!     node.start().await?;
-//!     
+//!     node.start()?;
+//!
 //!     // Use the node...
-//!     
+//!
 //!     // Stop and destroy the node
-//!     node.stop().await?;
+//!     node.stop()?;
 //!     node.destroy()?;
-//!     
+//!
 //!     Ok(())
 //! }
 //! ```

@@ -2,7 +2,7 @@
 //!
 //! This module contains the core upload operations: init, chunk, finalize, and cancel.
 
-use crate::callback::{c_callback, CallbackFuture};
+use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{
     codex_upload_cancel, codex_upload_chunk, codex_upload_finalize, codex_upload_init,
@@ -36,7 +36,7 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
     };
 
     // Call the C function with the context pointer directly
-    let result = unsafe {
+    let result = with_libcodex_lock(|| unsafe {
         codex_upload_init(
             node.ctx as *mut _,
             c_filepath,
@@ -44,7 +44,7 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
             Some(c_callback),
             future.context_ptr() as *mut c_void,
         )
-    };
+    });
 
     // Clean up
     unsafe {
@@ -94,7 +94,7 @@ pub async fn upload_chunk(node: &CodexNode, session_id: &str, chunk: &[u8]) -> R
     let c_session_id = string_to_c_string(session_id);
 
     // Call the C function with the context pointer directly
-    let result = unsafe {
+    let result = with_libcodex_lock(|| unsafe {
         codex_upload_chunk(
             node.ctx as *mut _,
             c_session_id,
@@ -103,7 +103,7 @@ pub async fn upload_chunk(node: &CodexNode, session_id: &str, chunk: &[u8]) -> R
             Some(c_callback),
             future.context_ptr() as *mut c_void,
         )
-    };
+    });
 
     // Clean up
     unsafe {
@@ -143,14 +143,14 @@ pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<Strin
     let c_session_id = string_to_c_string(session_id);
 
     // Call the C function with the context pointer directly
-    let result = unsafe {
+    let result = with_libcodex_lock(|| unsafe {
         codex_upload_finalize(
             node.ctx as *mut _,
             c_session_id,
             Some(c_callback),
             future.context_ptr() as *mut c_void,
         )
-    };
+    });
 
     // Clean up
     unsafe {
@@ -190,14 +190,14 @@ pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
     let c_session_id = string_to_c_string(session_id);
 
     // Call the C function with the context pointer directly
-    let result = unsafe {
+    let result = with_libcodex_lock(|| unsafe {
         codex_upload_cancel(
             node.ctx as *mut _,
             c_session_id,
             Some(c_callback),
             future.context_ptr() as *mut c_void,
         )
-    };
+    });
 
     // Clean up
     unsafe {

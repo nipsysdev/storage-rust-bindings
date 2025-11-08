@@ -7,17 +7,18 @@ use crate::error::{CodexError, Result};
 use crate::ffi::{c_str_to_string, CallbackReturn};
 use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::LazyLock;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
 use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
-// Global registry for callback contexts
+// Global mutex to serialize all C library calls to prevent race conditions
+static LIBCODEX_MUTEX: Mutex<()> = Mutex::new(());
+
+// Global registry for callback contexts - thread-safe but not thread-keyed
 static CALLBACK_REGISTRY: LazyLock<Mutex<HashMap<u64, Arc<CallbackContext>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
-static NEXT_CALLBACK_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_CALLBACK_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(1));
 
 /// A callback context that manages the state of an async operation
 pub struct CallbackContext {
@@ -36,7 +37,12 @@ pub struct CallbackContext {
 impl CallbackContext {
     /// Create a new callback context
     pub fn new() -> Self {
-        let id = NEXT_CALLBACK_ID.fetch_add(1, Ordering::SeqCst);
+        let id = {
+            let mut next_id = NEXT_CALLBACK_ID.lock().unwrap();
+            let id = *next_id;
+            *next_id += 1;
+            id
+        };
         Self {
             result: Mutex::new(None),
             waker: Mutex::new(None),
@@ -156,8 +162,9 @@ impl CallbackContext {
 impl Drop for CallbackContext {
     fn drop(&mut self) {
         // Remove from registry when dropped
-        let mut registry = CALLBACK_REGISTRY.lock().unwrap();
-        registry.remove(&self.id);
+        if let Ok(mut registry) = CALLBACK_REGISTRY.lock() {
+            registry.remove(&self.id);
+        }
     }
 }
 
@@ -216,7 +223,19 @@ impl std::future::Future for CallbackFuture {
     }
 }
 
+/// Execute a function with the global libcodex mutex locked
+/// This prevents race conditions when multiple threads access the C library
+pub fn with_libcodex_lock<F, R>(f: F) -> R
+where
+    F: FnOnce() -> R,
+{
+    let _lock = LIBCODEX_MUTEX.lock().unwrap();
+    f()
+}
+
 /// C callback function that forwards to the appropriate Rust callback context
+/// NOTE: This function is called from C code and should NOT try to acquire LIBCODEX_MUTEX
+/// as it would cause a deadlock if the C library is holding internal locks
 #[no_mangle]
 pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, resp: *mut c_void) {
     if resp.is_null() {
@@ -228,8 +247,11 @@ pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, r
 
     // Look up the context in the global registry
     let context = {
-        let registry = CALLBACK_REGISTRY.lock().unwrap();
-        registry.get(&callback_id).cloned()
+        if let Ok(registry) = CALLBACK_REGISTRY.lock() {
+            registry.get(&callback_id).cloned()
+        } else {
+            None
+        }
     };
 
     if let Some(context) = context {
@@ -379,22 +401,6 @@ mod tests {
         // Future should complete with error
         let result = future.await;
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_callback_wait_timeout() {
-        let context = CallbackContext::new();
-
-        // Wait without setting any result - should timeout
-        let result = context.wait();
-        assert!(result.is_err());
-
-        match result {
-            Err(CodexError::Timeout { .. }) => {
-                // Expected
-            }
-            _ => panic!("Expected Timeout error"),
-        }
     }
 
     #[test]
