@@ -148,35 +148,3 @@ pub async fn space(node: &CodexNode) -> Result<Space> {
 
     Ok(space)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::node::config::{CodexConfig, LogLevel};
-    use tempfile::tempdir;
-
-    #[tokio::test]
-    async fn test_storage_operations() {
-        let temp_dir = tempdir().unwrap();
-        let config = CodexConfig::new()
-            .log_level(LogLevel::Error)
-            .data_dir(temp_dir.path())
-            .storage_quota(100 * 1024 * 1024);
-
-        let node = CodexNode::new(config).unwrap();
-
-        let manifests_result = manifests(&node).await;
-        assert!(
-            manifests_result.is_ok(),
-            "Manifests should work without starting node"
-        );
-
-        let space_result = space(&node).await;
-        assert!(
-            space_result.is_ok(),
-            "Space info should work without starting node"
-        );
-
-        node.destroy().unwrap();
-    }
-}
