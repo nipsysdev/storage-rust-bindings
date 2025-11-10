@@ -314,7 +314,13 @@ mod tests {
             Err(CodexError::LibraryError { message, .. }) => {
                 assert_eq!(message, "Unknown error");
             }
-            _ => panic!("Expected LibraryError, got: {:?}", result),
+            other => {
+                assert!(
+                    matches!(other, Err(CodexError::LibraryError { .. })),
+                    "Expected LibraryError with message 'Unknown error', got: {:?}",
+                    other
+                );
+            }
         }
     }
 

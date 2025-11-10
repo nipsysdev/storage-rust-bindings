@@ -2,56 +2,12 @@
 //!
 //! This module contains peer discovery and information operations.
 
-use crate::callback::{c_callback, CallbackFuture};
+use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{codex_peer_debug, codex_peer_id, free_c_string, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
+use crate::p2p::types::{PeerInfo, PeerRecord};
 use libc::c_void;
-use serde::{Deserialize, Serialize};
-
-/// Information about a peer in the network
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PeerInfo {
-    /// Peer ID
-    pub id: String,
-    /// Multiaddresses of the peer
-    pub addresses: Vec<String>,
-    /// Whether the peer is connected
-    pub connected: bool,
-    /// Connection direction (inbound/outbound)
-    pub direction: Option<String>,
-    /// Latency to the peer (in milliseconds)
-    pub latency_ms: Option<u64>,
-}
-
-/// Detailed peer record for debugging
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PeerRecord {
-    /// Peer ID
-    pub id: String,
-    /// Multiaddresses of the peer
-    pub addresses: Vec<String>,
-    /// Connection state
-    pub connected: bool,
-    /// Connection direction
-    pub direction: Option<String>,
-    /// Latency information
-    pub latency_ms: Option<u64>,
-    /// Protocols supported by the peer
-    pub protocols: Vec<String>,
-    /// User agent string
-    pub user_agent: Option<String>,
-    /// Last seen timestamp
-    pub last_seen: Option<String>,
-    /// Connection duration in seconds
-    pub connection_duration_seconds: Option<u64>,
-    /// Bytes sent to this peer
-    pub bytes_sent: Option<u64>,
-    /// Bytes received from this peer
-    pub bytes_received: Option<u64>,
-    /// Additional peer metadata
-    pub metadata: Option<serde_json::Value>,
-}
 
 /// Get detailed information about a specific peer
 ///
@@ -74,26 +30,30 @@ pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord
     // Create a callback future for the operation
     let future = CallbackFuture::new();
 
-    let c_peer_id = string_to_c_string(peer_id);
+    with_libcodex_lock(|| {
+        let c_peer_id = string_to_c_string(peer_id);
 
-    // Call the C function with the context pointer directly
-    let result = unsafe {
-        codex_peer_debug(
-            node.ctx as *mut _,
-            c_peer_id,
-            Some(c_callback),
-            future.context_ptr() as *mut c_void,
-        )
-    };
+        // Call the C function with the context pointer directly
+        let result = unsafe {
+            codex_peer_debug(
+                node.ctx as *mut _,
+                c_peer_id,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        };
 
-    // Clean up
-    unsafe {
-        free_c_string(c_peer_id);
-    }
+        // Clean up
+        unsafe {
+            free_c_string(c_peer_id);
+        }
 
-    if result != 0 {
-        return Err(CodexError::p2p_error("Failed to get peer info"));
-    }
+        if result != 0 {
+            return Err(CodexError::p2p_error("Failed to get peer info"));
+        }
+
+        Ok(())
+    })?;
 
     // Wait for the operation to complete
     let peer_json = future.await?;
@@ -110,18 +70,22 @@ pub async fn get_peer_id(node: &CodexNode) -> Result<String> {
     // Create a callback future for the operation
     let future = CallbackFuture::new();
 
-    // Call the C function with the context pointer directly
-    let result = unsafe {
-        codex_peer_id(
-            node.ctx as *mut _,
-            Some(c_callback),
-            future.context_ptr() as *mut c_void,
-        )
-    };
+    with_libcodex_lock(|| {
+        // Call the C function with the context pointer directly
+        let result = unsafe {
+            codex_peer_id(
+                node.ctx as *mut _,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        };
 
-    if result != 0 {
-        return Err(CodexError::p2p_error("Failed to get peer ID"));
-    }
+        if result != 0 {
+            return Err(CodexError::p2p_error("Failed to get peer ID"));
+        }
+
+        Ok(())
+    })?;
 
     // Wait for the operation to complete
     let peer_id = future.await?;

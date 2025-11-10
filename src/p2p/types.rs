@@ -251,6 +251,74 @@ impl PeerRecord {
             latency_ms: self.latency_ms,
         }
     }
+
+    /// Get a human-readable latency string
+    pub fn latency_string(&self) -> String {
+        match self.latency_ms {
+            Some(latency) => format!("{}ms", latency),
+            None => "Unknown".to_string(),
+        }
+    }
+
+    /// Get connection quality based on latency and duration
+    pub fn connection_quality(&self) -> ConnectionQuality {
+        let latency = self.latency_ms.unwrap_or(u64::MAX);
+        let duration = self.connection_duration_seconds.unwrap_or(0);
+
+        match (latency, duration) {
+            (0..=100, 300..) => ConnectionQuality::Excellent,
+            (0..=100, _) => ConnectionQuality::Good,
+            (101..=500, 300..) => ConnectionQuality::Good,
+            (101..=500, _) => ConnectionQuality::Fair,
+            (501..=1000, 300..) => ConnectionQuality::Fair,
+            (501..=1000, _) => ConnectionQuality::Poor,
+            _ => ConnectionQuality::VeryPoor,
+        }
+    }
+
+    /// Check if the connection is inbound
+    pub fn is_inbound(&self) -> bool {
+        self.direction.as_ref().map_or(false, |d| d == "inbound")
+    }
+
+    /// Check if the connection is outbound
+    pub fn is_outbound(&self) -> bool {
+        self.direction.as_ref().map_or(false, |d| d == "outbound")
+    }
+}
+
+/// Connection quality assessment
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConnectionQuality {
+    Excellent,
+    Good,
+    Fair,
+    Poor,
+    VeryPoor,
+}
+
+impl ConnectionQuality {
+    /// Get a string representation
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ConnectionQuality::Excellent => "Excellent",
+            ConnectionQuality::Good => "Good",
+            ConnectionQuality::Fair => "Fair",
+            ConnectionQuality::Poor => "Poor",
+            ConnectionQuality::VeryPoor => "VeryPoor",
+        }
+    }
+
+    /// Get a numeric score (0-4)
+    pub fn score(&self) -> u8 {
+        match self {
+            ConnectionQuality::Excellent => 4,
+            ConnectionQuality::Good => 3,
+            ConnectionQuality::Fair => 2,
+            ConnectionQuality::Poor => 1,
+            ConnectionQuality::VeryPoor => 0,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -10,4 +10,7 @@ pub mod peer;
 pub use node::{debug, update_log_level, DebugInfo, LogLevel};
 
 // Re-export peer debugging operations
-pub use peer::{peer_debug, ConnectionQuality, PeerRecord};
+pub use peer::peer_debug;
+
+// Re-export types from p2p module
+pub use crate::p2p::{ConnectionQuality, PeerRecord};

@@ -58,6 +58,7 @@ pub use download::{
 pub use download::{DownloadOptions, DownloadProgress, DownloadStreamOptions};
 pub use error::{CodexError, Result};
 pub use node::{CodexConfig, CodexNode, LogFormat, LogLevel};
+pub use p2p::ConnectionQuality;
 pub use p2p::{connect, get_peer_id, get_peer_info, PeerInfo};
 pub use storage::{delete, exists, fetch, manifests, space, Manifest, Space};
 pub use upload::types::UploadResult;
