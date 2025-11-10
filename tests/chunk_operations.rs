@@ -5,7 +5,7 @@
 //! - Download using chunk-by-chunk approach
 //! - Handle resumable uploads and downloads
 
-use codex_rust_bindings::{
+use codex_bindings::{
     download_cancel, download_chunk, download_init, upload_cancel, upload_chunk, upload_finalize,
     upload_init, CodexConfig, CodexNode, LogLevel, UploadOptions,
 };
@@ -78,12 +78,12 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Verify the content exists
     println!("\n=== Verifying Upload ===");
-    let exists = codex_rust_bindings::exists(&node, &cid).await?;
+    let exists = codex_bindings::exists(&node, &cid).await?;
     assert!(exists, "Content should exist after upload");
     println!("Content exists: {}", exists);
 
     // Get manifest information
-    let manifest = codex_rust_bindings::fetch(&node, &cid).await?;
+    let manifest = codex_bindings::fetch(&node, &cid).await?;
     println!("Manifest information:");
     println!("  CID: {}", manifest.cid);
     println!("  Size: {} bytes", manifest.dataset_size);
@@ -95,7 +95,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize download
     println!("Initializing download...");
-    let download_options = codex_rust_bindings::DownloadOptions::new(&cid);
+    let download_options = codex_bindings::DownloadOptions::new(&cid);
     download_init(&node, &cid, &download_options).await?;
     println!("Download initialized for CID: {}", cid);
 
@@ -213,7 +213,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get final storage information
     println!("\n=== Final Storage Information ===");
-    let space_info = codex_rust_bindings::space(&node).await?;
+    let space_info = codex_bindings::space(&node).await?;
     println!("Storage usage:");
     println!("  Used: {} bytes", space_info.quota_used_bytes);
     println!(
@@ -223,7 +223,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Total blocks: {}", space_info.total_blocks);
 
     // List all manifests
-    let manifests = codex_rust_bindings::manifests(&node).await?;
+    let manifests = codex_bindings::manifests(&node).await?;
     println!("Total manifests: {}", manifests.len());
     assert!(
         manifests.len() >= 2,

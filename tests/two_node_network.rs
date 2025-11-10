@@ -6,7 +6,7 @@
 //! - Connect the nodes
 //! - Transfer data between nodes
 
-use codex_rust_bindings::{
+use codex_bindings::{
     connect, download_stream, upload_file, CodexConfig, CodexNode, DownloadStreamOptions, LogLevel,
     UploadOptions,
 };
@@ -91,8 +91,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get debug information for both nodes
     println!("\n=== Node Debug Information ===");
-    let debug1 = codex_rust_bindings::debug(&node1).await?;
-    let debug2 = codex_rust_bindings::debug(&node2).await?;
+    let debug1 = codex_bindings::debug(&node1).await?;
+    let debug2 = codex_bindings::debug(&node2).await?;
 
     println!("Node 1 debug info:");
     println!("  Peer ID: {}", debug1.peer_id());
@@ -155,7 +155,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if the content exists on node1
     println!("\n=== Checking Content on Node 1 ===");
-    let exists_on_node1 = codex_rust_bindings::exists(&node1, &upload_result.cid).await?;
+    let exists_on_node1 = codex_bindings::exists(&node1, &upload_result.cid).await?;
     assert!(exists_on_node1, "Content should exist on node1");
     println!("Content exists on node1: {}", exists_on_node1);
 
@@ -166,7 +166,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     let fetch_timeout = tokio::time::Duration::from_secs(30);
     let fetch_result = tokio::time::timeout(
         fetch_timeout,
-        codex_rust_bindings::fetch(&node2, &upload_result.cid),
+        codex_bindings::fetch(&node2, &upload_result.cid),
     )
     .await;
 
@@ -190,7 +190,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Check if content exists on node2 after fetch attempt
-    let exists_on_node2 = codex_rust_bindings::exists(&node2, &upload_result.cid).await?;
+    let exists_on_node2 = codex_bindings::exists(&node2, &upload_result.cid).await?;
     println!("Content exists on node2: {}", exists_on_node2);
 
     // Download the file from node2 (if it has the content)
@@ -228,8 +228,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get final debug information
     println!("\n=== Final Node Status ===");
-    let final_debug1 = codex_rust_bindings::debug(&node1).await?;
-    let final_debug2 = codex_rust_bindings::debug(&node2).await?;
+    let final_debug1 = codex_bindings::debug(&node1).await?;
+    let final_debug2 = codex_bindings::debug(&node2).await?;
 
     println!("Node 1 final status:");
     println!("  Peer ID: {}", final_debug1.peer_id());
@@ -251,8 +251,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get storage information
     println!("\n=== Storage Information ===");
-    let space1 = codex_rust_bindings::space(&node1).await?;
-    let space2 = codex_rust_bindings::space(&node2).await?;
+    let space1 = codex_bindings::space(&node1).await?;
+    let space2 = codex_bindings::space(&node2).await?;
 
     println!("Node 1 storage:");
     println!("  Used: {} bytes", space1.quota_used_bytes);
@@ -272,8 +272,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // List manifests on both nodes
     println!("\n=== Manifests ===");
-    let manifests1 = codex_rust_bindings::manifests(&node1).await?;
-    let manifests2 = codex_rust_bindings::manifests(&node2).await?;
+    let manifests1 = codex_bindings::manifests(&node1).await?;
+    let manifests2 = codex_bindings::manifests(&node2).await?;
 
     println!("Node 1 manifests: {}", manifests1.len());
     for manifest in &manifests1 {

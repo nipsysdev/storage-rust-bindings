@@ -41,7 +41,7 @@ impl CodexNode {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use codex_rust_bindings::{CodexNode, CodexConfig};
+    /// use codex_bindings::{CodexNode, CodexConfig};
     ///
     /// let config = CodexConfig::default();
     /// let mut node = CodexNode::new(config)?;
@@ -94,7 +94,7 @@ impl CodexNode {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use codex_rust_bindings::{CodexNode, CodexConfig};
+    /// use codex_bindings::{CodexNode, CodexConfig};
     ///
     /// let config = CodexConfig::default();
     /// let mut node = CodexNode::new(config)?;
@@ -179,7 +179,7 @@ impl CodexNode {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use codex_rust_bindings::{CodexNode, CodexConfig};
+    /// use codex_bindings::{CodexNode, CodexConfig};
     ///
     /// let config = CodexConfig::default();
     /// let mut node = CodexNode::new(config)?;
@@ -256,7 +256,7 @@ impl CodexNode {
     /// # Examples
     ///
     /// ```rust,no_run
-    /// use codex_rust_bindings::{CodexNode, CodexConfig};
+    /// use codex_bindings::{CodexNode, CodexConfig};
     ///
     /// let config = CodexConfig::default();
     /// let mut node = CodexNode::new(config)?;

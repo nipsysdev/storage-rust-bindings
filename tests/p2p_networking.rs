@@ -5,7 +5,7 @@
 //! - Get peer information
 //! - Debug peer connections
 
-use codex_rust_bindings::{CodexConfig, CodexNode, LogLevel};
+use codex_bindings::{CodexConfig, CodexNode, LogLevel};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -49,7 +49,7 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== P2P Operations ===");
 
     // Get our own peer ID using the P2P function
-    let our_peer_id = codex_rust_bindings::get_peer_id(&node).await?;
+    let our_peer_id = codex_bindings::get_peer_id(&node).await?;
     println!("Peer ID from P2P function: {}", our_peer_id);
     assert_eq!(peer_id, our_peer_id, "Peer IDs should match");
 
@@ -67,7 +67,7 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Address {}: {}", i + 1, addr);
     }
 
-    let connect_result = codex_rust_bindings::connect(&node, test_peer_id, &test_addresses).await;
+    let connect_result = codex_bindings::connect(&node, test_peer_id, &test_addresses).await;
     match connect_result {
         Ok(()) => println!("✓ Successfully connected to peer"),
         Err(e) => println!("✗ Failed to connect to peer: {}", e),
@@ -75,7 +75,7 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test getting peer information
     println!("\n=== Testing Peer Information ===");
-    let peer_info_result = codex_rust_bindings::get_peer_info(&node, test_peer_id).await;
+    let peer_info_result = codex_bindings::get_peer_info(&node, test_peer_id).await;
     match peer_info_result {
         Ok(peer_info) => {
             println!("✓ Successfully retrieved peer information:");
@@ -109,7 +109,7 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     for peer_id in test_peer_ids {
         println!("Testing peer ID: {}", peer_id);
-        let peer_info_result = codex_rust_bindings::get_peer_info(&node, peer_id).await;
+        let peer_info_result = codex_bindings::get_peer_info(&node, peer_id).await;
         match peer_info_result {
             Ok(_) => println!("  ✓ Successfully retrieved peer info"),
             Err(_) => println!("  ✗ Failed to retrieve peer info (expected for test peer)"),
@@ -121,13 +121,13 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     // Empty peer ID for connection
     println!("Testing connection with empty peer ID...");
-    let empty_peer_result = codex_rust_bindings::connect(&node, "", &test_addresses).await;
+    let empty_peer_result = codex_bindings::connect(&node, "", &test_addresses).await;
     assert!(empty_peer_result.is_err(), "Should fail with empty peer ID");
     println!("  ✓ Correctly failed with empty peer ID");
 
     // Empty addresses for connection
     println!("Testing connection with empty addresses...");
-    let empty_addr_result = codex_rust_bindings::connect(&node, test_peer_id, &[]).await;
+    let empty_addr_result = codex_bindings::connect(&node, test_peer_id, &[]).await;
     assert!(
         empty_addr_result.is_err(),
         "Should fail with empty addresses"
@@ -136,15 +136,15 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     // Empty peer ID for peer info
     println!("Testing peer info with empty peer ID...");
-    let empty_info_result = codex_rust_bindings::get_peer_info(&node, "").await;
+    let empty_info_result = codex_bindings::get_peer_info(&node, "").await;
     assert!(empty_info_result.is_err(), "Should fail with empty peer ID");
     println!("  ✓ Correctly failed with empty peer ID");
 
     // Test concurrent P2P operations
     println!("\n=== Testing Concurrent P2P Operations ===");
-    let peer_id_future1 = codex_rust_bindings::get_peer_id(&node);
-    let peer_info_future1 = codex_rust_bindings::get_peer_info(&node, "12D3KooWTestPeer1");
-    let peer_info_future2 = codex_rust_bindings::get_peer_info(&node, "12D3KooWTestPeer2");
+    let peer_id_future1 = codex_bindings::get_peer_id(&node);
+    let peer_info_future1 = codex_bindings::get_peer_info(&node, "12D3KooWTestPeer1");
+    let peer_info_future2 = codex_bindings::get_peer_info(&node, "12D3KooWTestPeer2");
 
     let (peer_id_result, peer_info_result1, peer_info_result2) =
         tokio::join!(peer_id_future1, peer_info_future1, peer_info_future2);

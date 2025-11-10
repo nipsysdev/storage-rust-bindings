@@ -15,7 +15,7 @@
 //! ## Quick Start
 //!
 //! ```rust,no_run
-//! use codex_rust_bindings::{CodexNode, CodexConfig};
+//! use codex_bindings::{CodexNode, CodexConfig};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // Create a configuration

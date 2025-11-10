@@ -3,7 +3,7 @@
 //! This test demonstrates how to create a Codex node, start it,
 //! upload a file, download it, and then clean up.
 
-use codex_rust_bindings::{
+use codex_bindings::{
     download_stream, upload_file, CodexConfig, CodexNode, DownloadStreamOptions, LogLevel,
     UploadOptions,
 };

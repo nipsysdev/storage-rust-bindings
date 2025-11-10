@@ -7,7 +7,7 @@
 //! - Delete content
 //! - Check content existence
 
-use codex_rust_bindings::{CodexConfig, CodexNode, LogLevel};
+use codex_bindings::{CodexConfig, CodexNode, LogLevel};
 use std::fs::File;
 use std::io::Write;
 use tempfile::tempdir;
@@ -47,7 +47,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get initial storage information
     println!("\n=== Initial Storage Information ===");
-    let space_info = codex_rust_bindings::space(&node).await?;
+    let space_info = codex_bindings::space(&node).await?;
     println!("Storage quota: {} bytes", space_info.quota_max_bytes);
     println!("Storage used: {} bytes", space_info.quota_used_bytes);
     println!(
@@ -58,7 +58,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // List initial manifests (should be empty)
     println!("\n=== Initial Manifests ===");
-    let manifests = codex_rust_bindings::manifests(&node).await?;
+    let manifests = codex_bindings::manifests(&node).await?;
     println!("Number of manifests: {}", manifests.len());
     assert_eq!(manifests.len(), 0, "Should start with no manifests");
 
@@ -71,7 +71,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Upload a file to have some content
     println!("\n=== Uploading Test File ===");
-    let upload_options = codex_rust_bindings::UploadOptions::new()
+    let upload_options = codex_bindings::UploadOptions::new()
         .filepath(&file_path)
         .on_progress(|progress| {
             println!(
@@ -81,26 +81,26 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
             );
         });
 
-    let upload_result = codex_rust_bindings::upload_file(&node, upload_options).await?;
+    let upload_result = codex_bindings::upload_file(&node, upload_options).await?;
     println!("File uploaded successfully!");
     println!("  CID: {}", upload_result.cid);
     println!("  Size: {} bytes", upload_result.size);
 
     // Check if content exists
     println!("\n=== Checking Content Existence ===");
-    let exists = codex_rust_bindings::exists(&node, &upload_result.cid).await?;
+    let exists = codex_bindings::exists(&node, &upload_result.cid).await?;
     assert!(exists, "Uploaded content should exist");
     println!("Content exists: {}", exists);
 
     // Check non-existent content (using a valid CID format that doesn't exist)
     let non_existent_cid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi";
-    let non_existent = codex_rust_bindings::exists(&node, non_existent_cid).await?;
+    let non_existent = codex_bindings::exists(&node, non_existent_cid).await?;
     assert!(!non_existent, "Non-existent content should not exist");
     println!("Non-existent content exists: {}", non_existent);
 
     // Fetch manifest information
     println!("\n=== Fetching Manifest Information ===");
-    let manifest = codex_rust_bindings::fetch(&node, &upload_result.cid).await?;
+    let manifest = codex_bindings::fetch(&node, &upload_result.cid).await?;
     println!("Manifest CID: {}", manifest.cid);
     println!("Manifest size: {} bytes", manifest.dataset_size);
     println!("Manifest block size: {} bytes", manifest.block_size);
@@ -110,7 +110,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // List manifests after upload
     println!("\n=== Manifests After Upload ===");
-    let manifests = codex_rust_bindings::manifests(&node).await?;
+    let manifests = codex_bindings::manifests(&node).await?;
     println!("Number of manifests: {}", manifests.len());
     assert_eq!(manifests.len(), 1, "Should have 1 manifest after upload");
 
@@ -123,7 +123,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get updated storage information
     println!("\n=== Updated Storage Information ===");
-    let space_info = codex_rust_bindings::space(&node).await?;
+    let space_info = codex_bindings::space(&node).await?;
     println!("Storage quota: {} bytes", space_info.quota_max_bytes);
     println!("Storage used: {} bytes", space_info.quota_used_bytes);
     println!(
@@ -139,16 +139,16 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
     file2.write_all(b"This is a second test file for storage management.")?;
     file2.sync_all()?;
 
-    let upload_options2 = codex_rust_bindings::UploadOptions::new().filepath(&file_path2);
+    let upload_options2 = codex_bindings::UploadOptions::new().filepath(&file_path2);
 
-    let upload_result2 = codex_rust_bindings::upload_file(&node, upload_options2).await?;
+    let upload_result2 = codex_bindings::upload_file(&node, upload_options2).await?;
     println!("Second file uploaded successfully!");
     println!("  CID: {}", upload_result2.cid);
     println!("  Size: {} bytes", upload_result2.size);
 
     // List manifests after second upload
     println!("\n=== Manifests After Second Upload ===");
-    let manifests = codex_rust_bindings::manifests(&node).await?;
+    let manifests = codex_bindings::manifests(&node).await?;
     println!("Number of manifests: {}", manifests.len());
     assert_eq!(
         manifests.len(),
@@ -165,18 +165,18 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Delete the first file
     println!("\n=== Deleting First File ===");
-    codex_rust_bindings::delete(&node, &upload_result.cid).await?;
+    codex_bindings::delete(&node, &upload_result.cid).await?;
     println!("First file deleted successfully!");
 
     // Check if deleted content still exists
     println!("\n=== Checking Deleted Content ===");
-    let exists_after_delete = codex_rust_bindings::exists(&node, &upload_result.cid).await?;
+    let exists_after_delete = codex_bindings::exists(&node, &upload_result.cid).await?;
     assert!(!exists_after_delete, "Deleted content should not exist");
     println!("Deleted content exists: {}", exists_after_delete);
 
     // List manifests after deletion
     println!("\n=== Manifests After Deletion ===");
-    let manifests = codex_rust_bindings::manifests(&node).await?;
+    let manifests = codex_bindings::manifests(&node).await?;
     println!("Number of manifests: {}", manifests.len());
     assert_eq!(manifests.len(), 1, "Should have 1 manifest after deletion");
 
@@ -189,7 +189,7 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get final storage information
     println!("\n=== Final Storage Information ===");
-    let space_info = codex_rust_bindings::space(&node).await?;
+    let space_info = codex_bindings::space(&node).await?;
     println!("Storage quota: {} bytes", space_info.quota_max_bytes);
     println!("Storage used: {} bytes", space_info.quota_used_bytes);
     println!(

@@ -6,7 +6,7 @@ use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{codex_peer_debug, free_c_string, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
-use crate::p2p::types::{ConnectionQuality, PeerRecord};
+use crate::p2p::types::PeerRecord;
 use libc::c_void;
 
 /// Get detailed debug information about a specific peer
@@ -69,6 +69,7 @@ pub fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ConnectionQuality;
 
     #[test]
     fn test_peer_record_methods() {

@@ -6,7 +6,7 @@ use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{codex_peer_debug, codex_peer_id, free_c_string, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
-use crate::p2p::types::{PeerInfo, PeerRecord};
+use crate::p2p::types::PeerRecord;
 use libc::c_void;
 
 /// Get detailed information about a specific peer
@@ -96,6 +96,7 @@ pub async fn get_peer_id(node: &CodexNode) -> Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::p2p::types::PeerInfo;
 
     #[test]
     fn test_peer_info_serialization() {
