@@ -15,10 +15,16 @@ fn check_required_tools() {
     println!("All required tools are available");
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum LinkingMode {
     Static,
     Dynamic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum SourceMode {
+    Submodule,
+    Cloned,
 }
 
 fn determine_linking_mode() -> LinkingMode {
@@ -35,28 +41,38 @@ fn determine_linking_mode() -> LinkingMode {
     }
 }
 
-fn get_nim_codex_dir() -> PathBuf {
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+fn determine_source_mode() -> SourceMode {
+    if env::var("CODEX_USE_CLONED").is_ok() {
+        println!("CODEX_USE_CLONED detected, using cloned mode");
+        return SourceMode::Cloned;
+    }
 
     let vendor_submodule = PathBuf::from("vendor/nim-codex");
-    if vendor_submodule.join(".git").exists() {
+    if vendor_submodule.join(".git").exists() && vendor_submodule.join("codex").exists() {
         println!("Using vendor/nim-codex submodule");
-        return vendor_submodule;
-    }
-
-    if vendor_submodule.exists() && vendor_submodule.join("codex").exists() {
-        println!("Using vendor/nim-codex source (published crate)");
-        return vendor_submodule;
-    }
-
-    let cloned_dir = out_dir.join("nim-codex");
-    if !cloned_dir.exists() {
-        println!("Cloning nim-codex to OUT_DIR (fallback)");
-        clone_nim_codex(&cloned_dir);
+        SourceMode::Submodule
     } else {
-        println!("Using previously cloned nim-codex in OUT_DIR");
+        println!("Vendor submodule not found or incomplete, using cloned mode");
+        SourceMode::Cloned
     }
-    cloned_dir
+}
+
+fn get_nim_codex_dir() -> PathBuf {
+    let source_mode = determine_source_mode();
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    match source_mode {
+        SourceMode::Submodule => PathBuf::from("vendor/nim-codex"),
+        SourceMode::Cloned => {
+            let cloned_dir = out_dir.join("nim-codex");
+            if !cloned_dir.exists() {
+                clone_nim_codex(&cloned_dir);
+            } else {
+                println!("Using previously cloned nim-codex in OUT_DIR");
+            }
+            cloned_dir
+        }
+    }
 }
 
 fn clone_nim_codex(target_dir: &PathBuf) {
@@ -136,6 +152,8 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
 }
 
 fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
+    println!("Building libcodex with dynamic linking...");
+
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
 
     let mut make_cmd = Command::new("make");
@@ -252,18 +270,70 @@ fn link_dynamic_library(lib_dir: &PathBuf) {
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir_abs.display());
 }
 
+fn copy_libcodex_header() -> PathBuf {
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let vendor_header = PathBuf::from("vendor/libcodex.h");
+    let target_header = out_path.join("libcodex.h");
+
+    if !vendor_header.exists() {
+        panic!(
+            "vendor/libcodex.h not found. Please ensure the vendor directory is properly set up."
+        );
+    }
+
+    std::fs::copy(&vendor_header, &target_header).expect("Unable to copy libcodex.h to OUT_DIR");
+
+    println!(
+        "Copied libcodex.h from vendor to {}",
+        target_header.display()
+    );
+    target_header
+}
+
+fn generate_bindings(libcodex_header_path: &PathBuf, nim_codex_dir: &PathBuf) {
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    let mut builder = bindgen::Builder::default()
+        .header(libcodex_header_path.to_str().expect("Invalid path"))
+        .default_enum_style(bindgen::EnumVariation::Rust {
+            non_exhaustive: false,
+        })
+        .generate_block(true)
+        .layout_tests(false)
+        .allowlist_function("codex_.*")
+        .allowlist_type("codex_.*")
+        .allowlist_var("codex_.*")
+        .allowlist_var("RET_.*")
+        .raw_line("#[allow(non_camel_case_types)]")
+        .raw_line("pub type CodexCallback = tyProc__crazOL9c5Gf8j9cqs2fd61EA;");
+
+    let nim_lib_path = nim_codex_dir.join("vendor/nimbus-build-system/vendor/Nim/lib");
+    if nim_lib_path.exists() {
+        builder = builder.clang_arg(format!("-I{}", nim_lib_path.display()));
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
+
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
+
+    println!("cargo:rerun-if-changed={}", libcodex_header_path.display());
+    println!("cargo:rerun-if-changed=vendor/libcodex.h");
+}
+
 fn main() {
     check_required_tools();
 
     let linking_mode = determine_linking_mode();
-
     let nim_codex_dir = get_nim_codex_dir();
 
     let lib_dir = nim_codex_dir.join("build");
-    let include_dir = nim_codex_dir.join("nimcache/release/libcodex");
+    let _include_dir = nim_codex_dir.join("nimcache/release/libcodex");
 
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=vendor/nim-codex");
+    println!("cargo:rerun-if-changed=vendor/libcodex.h");
 
     match linking_mode {
         LinkingMode::Static => {
@@ -278,98 +348,6 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
-    generate_bridge_h(&include_dir);
-    generate_bindings(&include_dir, &nim_codex_dir);
-}
-
-fn generate_bridge_h(_include_dir: &PathBuf) {
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let bridge_h_path = out_path.join("bridge.h");
-
-    let root_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
-    let vendor_header = PathBuf::from(root_dir).join("vendor/libcodex.h");
-
-    println!(
-        "Using fallback header from {} for bindgen",
-        vendor_header.display()
-    );
-
-    let bridge_content = format!(
-        r#"#include <stdbool.h>
-#include <stdlib.h>
-
-// Include the libcodex header
-#include "{}"
-
-// Ensure we have the necessary types and constants
-#ifndef RET_OK
-#define RET_OK 0
-#define RET_ERR 1
-#define RET_MISSING_CALLBACK 2
-#define RET_PROGRESS 3
-#endif
-
-// Callback function type (should match the one in libcodex.h)
-#ifndef CODEX_CALLBACK
-typedef void (*CodexCallback)(int ret, const char* msg, size_t len, void* userData);
-#define CODEX_CALLBACK
-#endif
-"#,
-        vendor_header.display()
-    );
-
-    std::fs::write(&bridge_h_path, bridge_content).expect("Unable to write bridge.h");
-
-    println!("Generated dynamic bridge.h at {}", bridge_h_path.display());
-}
-
-fn generate_bindings(include_dir: &PathBuf, nim_codex_dir: &PathBuf) {
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let bridge_h_path = out_path.join("bridge.h");
-
-    if !include_dir.exists() {
-        println!(
-            "Warning: Include directory not found at {}, using fallback headers",
-            include_dir.display()
-        );
-    }
-
-    let mut builder = bindgen::Builder::default()
-        .header(bridge_h_path.to_str().expect("Invalid path"))
-        .default_enum_style(bindgen::EnumVariation::Rust {
-            non_exhaustive: false,
-        })
-        .generate_block(true)
-        .layout_tests(false)
-        .allowlist_function("codex_.*")
-        .allowlist_type("codex_.*")
-        .allowlist_var("codex_.*")
-        .allowlist_var("RET_.*")
-        .raw_line("#[allow(non_camel_case_types)]")
-        .raw_line("pub type CodexCallback = tyProc__crazOL9c5Gf8j9cqs2fd61EA;");
-
-    if include_dir.exists() {
-        builder = builder.clang_arg(format!("-I{}", include_dir.display()));
-    }
-
-    let nim_lib_path = nim_codex_dir.join("vendor/nimbus-build-system/vendor/Nim/lib");
-    if nim_lib_path.exists() {
-        builder = builder.clang_arg(format!("-I{}", nim_lib_path.display()));
-    }
-
-    let bindings = builder.generate().expect("Unable to generate bindings");
-
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
-
-    println!("cargo:rerun-if-changed={}", bridge_h_path.display());
-    println!(
-        "cargo:rerun-if-changed={}",
-        include_dir.join("libcodex.h").display()
-    );
-    println!(
-        "cargo:rerun-if-changed={}",
-        nim_codex_dir.join("build/libcodex.so").display()
-    );
+    let libcodex_header_path = copy_libcodex_header();
+    generate_bindings(&libcodex_header_path, &nim_codex_dir);
 }
