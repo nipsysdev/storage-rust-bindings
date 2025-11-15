@@ -1,0 +1,3 @@
+[submodule "vendor/nim-codex"]
+	path = vendor/nim-codex
+	url = https://github.com/codex-storage/nim-codex

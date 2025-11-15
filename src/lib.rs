@@ -1,42 +1,3 @@
-//! # Codex Rust Bindings
-//!
-//! This library provides Rust bindings for the Codex SDK, allowing you to interact
-//! with the Codex network from Rust applications.
-//!
-//! ## Features
-//!
-//! - Node lifecycle management
-//! - File upload and download
-//! - Storage management
-//! - P2P networking
-//! - Debug operations
-//! - Async/await support
-//!
-//! ## Quick Start
-//!
-//! ```rust,no_run
-//! use codex_bindings::{CodexNode, CodexConfig};
-//!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Create a configuration
-//!     let config = CodexConfig::default();
-//!
-//!     // Create a new node
-//!     let mut node = CodexNode::new(config)?;
-//!
-//!     // Start the node
-//!     node.start()?;
-//!
-//!     // Use the node...
-//!
-//!     // Stop and destroy the node
-//!     node.stop()?;
-//!     node.destroy()?;
-//!
-//!     Ok(())
-//! }
-//! ```
-
 pub mod callback;
 pub mod error;
 pub mod ffi;
@@ -48,21 +9,30 @@ pub mod p2p;
 pub mod storage;
 pub mod upload;
 
-// Re-export the main types for convenience
-pub use debug::{debug, peer_debug, update_log_level};
-pub use debug::{DebugInfo, PeerRecord};
-pub use download::types::DownloadResult;
+// Debug operations and types
+pub use debug::{debug, peer_debug, update_log_level, DebugInfo};
+
 pub use download::{
     download_cancel, download_chunk, download_init, download_manifest, download_stream,
+    DownloadOptions, DownloadProgress, DownloadResult, DownloadStreamOptions,
 };
-pub use download::{DownloadOptions, DownloadProgress, DownloadStreamOptions};
+
 pub use error::{CodexError, Result};
+
 pub use node::{CodexConfig, CodexNode, LogFormat, LogLevel};
-pub use p2p::ConnectionQuality;
-pub use p2p::{connect, get_peer_id, get_peer_info, PeerInfo};
-pub use storage::{delete, exists, fetch, manifests, space, Manifest, Space};
-pub use upload::types::UploadResult;
+
+pub use p2p::{
+    connect, connect_to_multiple, get_peer_id, get_peer_info, validate_addresses, validate_peer_id,
+    ConnectionQuality, PeerInfo, PeerRecord,
+};
+
+pub use storage::{delete, exists, fetch, manifests, space, Manifest as StorageManifest, Space};
+
 pub use upload::{
     upload_cancel, upload_chunk, upload_file, upload_finalize, upload_init, upload_reader,
-    UploadOptions, UploadProgress,
+    UploadOptions, UploadProgress, UploadResult, UploadStrategy,
+};
+
+pub use upload::{
+    create_streaming_reader, AsyncStreamingUploadReader, StreamingUploadReader, UploadProgressExt,
 };

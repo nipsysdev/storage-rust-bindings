@@ -1,7 +1,22 @@
 //! Debug operations for Codex
 //!
-//! This module provides functionality for debugging and diagnostics,
-//! including getting node info, updating log levels, and peer debugging.
+//! This module provides comprehensive debugging and diagnostics functionality for Codex nodes.
+//! It includes operations for getting node information, updating log levels, and peer debugging.
+//!
+//! ## Node Debugging
+//!
+//! - [`debug()`] - Get comprehensive debug information about the node
+//! - [`update_log_level()`] - Dynamically update the node's log level
+//!
+//! ## Peer Debugging
+//!
+//! - [`peer_debug()`] - Get detailed information about a specific peer
+//!
+//! ## Types
+//!
+//! - [`DebugInfo`] - Comprehensive node debug information including network status
+//! - [`LogLevel`] - Enum for different log levels (Trace, Debug, Info, etc.)
+//! - [`PeerRecord`] - Detailed peer information for debugging
 
 pub mod node;
 pub mod peer;

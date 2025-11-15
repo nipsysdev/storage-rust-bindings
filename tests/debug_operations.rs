@@ -102,7 +102,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     for peer_id in test_peer_ids {
         println!("Getting debug info for peer: {}", peer_id);
-        let peer_record = codex_bindings::peer_debug(&node, peer_id);
+        let peer_record = codex_bindings::peer_debug(&node, peer_id).await;
         match peer_record {
             Ok(record) => {
                 println!("  ✓ Successfully retrieved peer debug info:");
@@ -143,12 +143,12 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test invalid peer ID
     println!("\n=== Testing Invalid Peer ID ===");
-    let empty_peer_result = codex_bindings::peer_debug(&node, "");
+    let empty_peer_result = codex_bindings::peer_debug(&node, "").await;
     assert!(empty_peer_result.is_err(), "Should fail with empty peer ID");
     println!("  ✓ Correctly failed with empty peer ID");
 
     // Test whitespace-only peer ID
-    let whitespace_peer_result = codex_bindings::peer_debug(&node, "   \t\n   ");
+    let whitespace_peer_result = codex_bindings::peer_debug(&node, "   \t\n   ").await;
     assert!(
         whitespace_peer_result.is_err(),
         "Should fail with whitespace-only peer ID"
@@ -182,7 +182,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✗ Log level update failed without starting node: {}", e),
     }
 
-    let peer_debug_result = codex_bindings::peer_debug(&node2, "12D3KooWTestPeer");
+    let peer_debug_result = codex_bindings::peer_debug(&node2, "12D3KooWTestPeer").await;
     match peer_debug_result {
         Ok(_) => println!("  ✓ Peer debug works without starting node"),
         Err(e) => println!("  ✗ Peer debug failed without starting node: {}", e),
@@ -195,8 +195,8 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Testing Concurrent Debug Operations ===");
     let debug_future1 = codex_bindings::debug(&node);
     let debug_future2 = codex_bindings::debug(&node);
-    let peer_debug_future1 = async { codex_bindings::peer_debug(&node, "12D3KooWTestPeer1") };
-    let peer_debug_future2 = async { codex_bindings::peer_debug(&node, "12D3KooWTestPeer2") };
+    let peer_debug_future1 = codex_bindings::peer_debug(&node, "12D3KooWTestPeer1");
+    let peer_debug_future2 = codex_bindings::peer_debug(&node, "12D3KooWTestPeer2");
 
     let (debug_result1, debug_result2, peer_debug_result1, peer_debug_result2) = tokio::join!(
         debug_future1,

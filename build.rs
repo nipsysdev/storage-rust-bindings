@@ -2,7 +2,6 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-/// Check if required tools are available
 fn check_required_tools() {
     let tools = ["git", "make"];
     for tool in &tools {
@@ -36,15 +35,36 @@ fn determine_linking_mode() -> LinkingMode {
     }
 }
 
-/// Clone nim-codex from GitHub to the specified directory
+fn get_nim_codex_dir() -> PathBuf {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+
+    let vendor_submodule = PathBuf::from("vendor/nim-codex");
+    if vendor_submodule.join(".git").exists() {
+        println!("Using vendor/nim-codex submodule");
+        return vendor_submodule;
+    }
+
+    if vendor_submodule.exists() && vendor_submodule.join("codex").exists() {
+        println!("Using vendor/nim-codex source (published crate)");
+        return vendor_submodule;
+    }
+
+    let cloned_dir = out_dir.join("nim-codex");
+    if !cloned_dir.exists() {
+        println!("Cloning nim-codex to OUT_DIR (fallback)");
+        clone_nim_codex(&cloned_dir);
+    } else {
+        println!("Using previously cloned nim-codex in OUT_DIR");
+    }
+    cloned_dir
+}
+
 fn clone_nim_codex(target_dir: &PathBuf) {
     println!("Cloning nim-codex repository...");
 
     let status = Command::new("git")
         .args(&[
             "clone",
-            "--branch",
-            "feat/c-binding",
             "--recurse-submodules",
             "https://github.com/codex-storage/nim-codex",
             &target_dir.to_string_lossy(),
@@ -54,7 +74,7 @@ fn clone_nim_codex(target_dir: &PathBuf) {
 
     if !status.success() {
         panic!(
-            "Failed to clone nim-codex repository from https://github.com/codex-storage/nim-codex (branch: feat/c-binding). \
+            "Failed to clone nim-codex repository from https://github.com/codex-storage/nim-codex. \
              Please check your internet connection and repository access."
         );
     }
@@ -62,11 +82,9 @@ fn clone_nim_codex(target_dir: &PathBuf) {
     println!("Successfully cloned nim-codex");
 }
 
-/// Build libcodex with static linking
 fn build_libcodex_static(nim_codex_dir: &PathBuf) {
     println!("Building libcodex with static linking...");
 
-    // Get CODEX_LIB_PARAMS from environment if set
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
 
     let mut make_cmd = Command::new("make");
@@ -77,14 +95,12 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
         "libcodex",
     ]);
 
-    // Add custom parameters if provided
     if !codex_params.is_empty() {
         make_cmd.env("CODEX_LIB_PARAMS", &codex_params);
     }
 
-    // Set environment variables for better build experience
-    make_cmd.env("V", "1"); // Verbose output
-    make_cmd.env("USE_SYSTEM_NIM", "0"); // Don't use system Nim, build from source
+    make_cmd.env("V", "1");
+    make_cmd.env("USE_SYSTEM_NIM", "0");
 
     println!("Running make command to build libcodex (this may take several minutes)...");
 
@@ -119,15 +135,12 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
     println!("Successfully built libcodex (static)");
 }
 
-/// Build libcodex with dynamic linking
 fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
-    // Get CODEX_LIB_PARAMS from environment if set
     let codex_params = env::var("CODEX_LIB_PARAMS").unwrap_or_default();
 
     let mut make_cmd = Command::new("make");
     make_cmd.args(&["-C", &nim_codex_dir.to_string_lossy(), "libcodex"]);
 
-    // Add custom parameters if provided
     if !codex_params.is_empty() {
         make_cmd.env("CODEX_LIB_PARAMS", &codex_params);
     }
@@ -148,9 +161,7 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
     println!("Successfully built libcodex (dynamic)");
 }
 
-/// Ensure libcodex is built (check if it exists)
 fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf, linking_mode: LinkingMode) {
-    // Check if libcodex already exists
     let lib_exists = match linking_mode {
         LinkingMode::Static => lib_dir.join("libcodex.a").exists(),
         LinkingMode::Dynamic => lib_dir.join("libcodex.so").exists(),
@@ -167,9 +178,7 @@ fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf, linking_mode: Lin
     }
 }
 
-/// Link static library and its dependencies
 fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
-    // Set up all library search paths first
     println!(
         "cargo:rustc-link-search=native={}",
         nim_codex_dir
@@ -212,11 +221,8 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
             .display()
     );
 
-    // Use a custom linker script to handle the grouping properly
-    // This avoids issues with Rust's automatic -Bstatic/-Bdynamic insertion
     println!("cargo:rustc-link-arg=-Wl,--whole-archive");
 
-    // Link against additional required static libraries FIRST
     println!("cargo:rustc-link-lib=static=backtrace");
     println!("cargo:rustc-link-lib=static=circom_compat_ffi");
     println!("cargo:rustc-link-lib=static=natpmp");
@@ -224,50 +230,40 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     println!("cargo:rustc-link-lib=static=backtracenim");
     println!("cargo:rustc-link-lib=static=libleopard");
 
-    // Link against libcodex LAST (it depends on all the above)
     println!("cargo:rustc-link-lib=static=codex");
 
     println!("cargo:rustc-link-arg=-Wl,--no-whole-archive");
 
-    // Link against C++ standard library for libcodex C++ dependencies
     println!("cargo:rustc-link-lib=stdc++");
 
-    // Link against OpenMP for leopard library
     println!("cargo:rustc-link-lib=dylib=gomp");
 
-    // Link against Rust's built-in stack probe for wasmer
     println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
     println!("cargo:rustc-link-arg=-Wl,--defsym=__rust_probestack=0");
 
-    // Provide dummy symbols for missing Nim runtime functions
     println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
     println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
 }
 
-/// Link dynamic library
 fn link_dynamic_library(lib_dir: &PathBuf) {
     println!("cargo:rustc-link-lib=dylib=codex");
 
-    // Add rpath so the library can be found without LD_LIBRARY_PATH
     let lib_dir_abs = std::fs::canonicalize(lib_dir).unwrap_or_else(|_| lib_dir.to_path_buf());
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir_abs.display());
 }
 
 fn main() {
-    // Check for required tools first
     check_required_tools();
 
     let linking_mode = determine_linking_mode();
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    // Always clone nim-codex to OUT_DIR
-    let nim_codex_dir = out_dir.join("nim-codex");
-    if !nim_codex_dir.exists() {
-        clone_nim_codex(&nim_codex_dir);
-    }
+    let nim_codex_dir = get_nim_codex_dir();
 
     let lib_dir = nim_codex_dir.join("build");
     let include_dir = nim_codex_dir.join("nimcache/release/libcodex");
+
+    println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-changed=vendor/nim-codex");
 
     match linking_mode {
         LinkingMode::Static => {
@@ -280,25 +276,30 @@ fn main() {
         }
     }
 
-    // Tell cargo to look for libraries in the build directory
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
-    // Generate a dynamic bridge.h file with the correct paths
     generate_bridge_h(&include_dir);
     generate_bindings(&include_dir, &nim_codex_dir);
 }
 
-/// Generate a dynamic bridge.h file with the correct include path
-fn generate_bridge_h(include_dir: &PathBuf) {
+fn generate_bridge_h(_include_dir: &PathBuf) {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
     let bridge_h_path = out_path.join("bridge.h");
+
+    let root_dir = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+    let vendor_header = PathBuf::from(root_dir).join("vendor/libcodex.h");
+
+    println!(
+        "Using fallback header from {} for bindgen",
+        vendor_header.display()
+    );
 
     let bridge_content = format!(
         r#"#include <stdbool.h>
 #include <stdlib.h>
 
-// Include the generated libcodex header from nimcache
-#include "{}/libcodex.h"
+// Include the libcodex header
+#include "{}"
 
 // Ensure we have the necessary types and constants
 #ifndef RET_OK
@@ -314,7 +315,7 @@ typedef void (*CodexCallback)(int ret, const char* msg, size_t len, void* userDa
 #define CODEX_CALLBACK
 #endif
 "#,
-        include_dir.display()
+        vendor_header.display()
     );
 
     std::fs::write(&bridge_h_path, bridge_content).expect("Unable to write bridge.h");
@@ -322,64 +323,46 @@ typedef void (*CodexCallback)(int ret, const char* msg, size_t len, void* userDa
     println!("Generated dynamic bridge.h at {}", bridge_h_path.display());
 }
 
-/// Generate Rust bindings from C headers
 fn generate_bindings(include_dir: &PathBuf, nim_codex_dir: &PathBuf) {
-    // Verify include directory exists
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let bridge_h_path = out_path.join("bridge.h");
+
     if !include_dir.exists() {
-        panic!(
-            "Include directory not found at {}. Please ensure libcodex was built successfully.",
+        println!(
+            "Warning: Include directory not found at {}, using fallback headers",
             include_dir.display()
         );
     }
 
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let bridge_h_path = out_path.join("bridge.h");
-
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
-    let bindings = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
+    let mut builder = bindgen::Builder::default()
         .header(bridge_h_path.to_str().expect("Invalid path"))
-        // Add include path for libcodex headers
-        .clang_arg(format!("-I{}", include_dir.display()))
-        // Add include path for Nim headers
-        .clang_arg(format!(
-            "-I{}",
-            nim_codex_dir
-                .join("vendor/nimbus-build-system/vendor/Nim/lib")
-                .display()
-        ))
-        // Tell bindgen to generate Rust bindings for all C++ enums.
         .default_enum_style(bindgen::EnumVariation::Rust {
             non_exhaustive: false,
         })
-        // Tell bindgen to generate blocking functions.
         .generate_block(true)
-        // Tell bindgen to generate layout tests.
         .layout_tests(false)
-        // Tell bindgen to allowlist these types.
         .allowlist_function("codex_.*")
         .allowlist_type("codex_.*")
         .allowlist_var("codex_.*")
         .allowlist_var("RET_.*")
-        // Suppress the naming convention warning for the generated type
         .raw_line("#[allow(non_camel_case_types)]")
-        // Add a type alias to fix the naming convention issue
-        .raw_line("pub type CodexCallback = tyProc__crazOL9c5Gf8j9cqs2fd61EA;")
-        // Don't add imports here as they're already imported in ffi/mod.rs
-        // Finish the builder and generate the bindings.
-        .generate()
-        // Unwrap the Result and panic on failure.
-        .expect("Unable to generate bindings");
+        .raw_line("pub type CodexCallback = tyProc__crazOL9c5Gf8j9cqs2fd61EA;");
 
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    if include_dir.exists() {
+        builder = builder.clang_arg(format!("-I{}", include_dir.display()));
+    }
+
+    let nim_lib_path = nim_codex_dir.join("vendor/nimbus-build-system/vendor/Nim/lib");
+    if nim_lib_path.exists() {
+        builder = builder.clang_arg(format!("-I{}", nim_lib_path.display()));
+    }
+
+    let bindings = builder.generate().expect("Unable to generate bindings");
+
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
 
-    // Rerun build script if these files change
     println!("cargo:rerun-if-changed={}", bridge_h_path.display());
     println!(
         "cargo:rerun-if-changed={}",

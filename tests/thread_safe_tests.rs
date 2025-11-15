@@ -1,8 +1,3 @@
-//! Thread-safe tests for CodexNode
-//!
-//! These tests verify that CodexNode can be safely used across threads
-//! and implements the required traits for concurrent operations.
-
 use codex_bindings::{CodexConfig, CodexNode};
 use std::sync::Arc;
 use tempfile::tempdir;
@@ -23,18 +18,15 @@ async fn test_thread_safe_node_lifecycle() {
 
     let mut node = CodexNode::new(config).unwrap();
 
-    // Start the node
     node.start().unwrap();
     assert!(node.is_started());
 
-    // Get some info
     let version = node.version().unwrap();
     assert!(!version.is_empty());
 
     let peer_id = node.peer_id().unwrap();
     assert!(!peer_id.is_empty());
 
-    // Stop the node
     node.stop().unwrap();
     assert!(!node.is_started());
 }
@@ -47,14 +39,11 @@ async fn test_node_cloning() {
     let mut node1 = CodexNode::new(config).unwrap();
     let node2 = node1.clone();
 
-    // Both should reference the same underlying node
     assert!(!node1.is_started());
     assert!(!node2.is_started());
 
-    // Start through one reference
     node1.start().unwrap();
 
-    // Both should show as started
     assert!(node1.is_started());
     assert!(node2.is_started());
 }
@@ -71,7 +60,6 @@ async fn test_concurrent_access() {
 
     let mut set = JoinSet::new();
 
-    // Spawn multiple concurrent operations
     for _ in 0..5 {
         let node_clone = node.clone();
         set.spawn(async move {
@@ -80,7 +68,6 @@ async fn test_concurrent_access() {
         });
     }
 
-    // Wait for all to complete
     while let Some(result) = set.join_next().await {
         result.unwrap();
     }
@@ -88,7 +75,6 @@ async fn test_concurrent_access() {
 
 #[test]
 fn test_send_sync_traits() {
-    // This test verifies that CodexNode implements Send and Sync
     fn assert_send<T: Send>() {}
     fn assert_sync<T: Sync>() {}
 
@@ -99,7 +85,6 @@ fn test_send_sync_traits() {
     assert_send::<CodexNode>();
     assert_sync::<CodexNode>();
 
-    // Test that Arc<CodexNode> is Send (needed for sharing across threads)
     assert_send::<Arc<CodexNode>>();
 }
 
@@ -111,11 +96,9 @@ fn test_clone_trait() {
     let mut node1 = CodexNode::new(config).unwrap();
     let node2 = node1.clone();
 
-    // Both should be valid
     assert!(!node1.is_started());
     assert!(!node2.is_started());
 
-    // Verify they share the same underlying state
     node1.start().unwrap();
     assert!(node1.is_started());
     assert!(node2.is_started());
@@ -127,9 +110,7 @@ async fn test_send_between_threads() {
     let config = CodexConfig::new().data_dir(temp_dir.path());
     let node = CodexNode::new(config).unwrap();
 
-    // Test that node can be sent to another thread
     let result = tokio::task::spawn(async move {
-        // Use node in a different thread
         let _version = node.version().unwrap();
         "success"
     })
@@ -144,22 +125,17 @@ async fn test_async_file_upload() {
     let config = CodexConfig::new().data_dir(temp_dir.path());
     let node = Arc::new(CodexNode::new(config).unwrap());
 
-    // Start the node
     node.start_async().await.unwrap();
 
-    // Create a test file
     let file_path = temp_dir.path().join("test.txt");
     std::fs::write(&file_path, b"Hello, Codex!").unwrap();
 
-    // Try to use upload_file in an async context
     let options = codex_bindings::UploadOptions::new().filepath(&file_path);
 
-    // This should work because CodexNode is Send and can be shared across threads
     let result = codex_bindings::upload_file(&node, options).await;
 
     assert!(result.is_ok(), "Upload should succeed");
 
-    // Stop the node
     node.stop_async().await.unwrap();
 }
 
@@ -169,16 +145,13 @@ async fn test_multiple_concurrent_operations() {
     let config = CodexConfig::new().data_dir(temp_dir.path());
     let node = Arc::new(CodexNode::new(config).unwrap());
 
-    // Start the node
     node.start_async().await.unwrap();
 
-    // Perform multiple operations concurrently
     let mut handles = Vec::new();
 
     for i in 0..5 {
         let node_clone = node.clone();
         let handle = tokio::task::spawn(async move {
-            // Multiple threads accessing the C library are properly synchronized
             let version = node_clone.version().unwrap();
             let peer_id = node_clone.peer_id().unwrap();
             (i, version, peer_id)
@@ -186,21 +159,18 @@ async fn test_multiple_concurrent_operations() {
         handles.push(handle);
     }
 
-    // Wait for all operations
     let mut results = Vec::new();
     for handle in handles {
         let result = handle.await.unwrap();
         results.push(result);
     }
 
-    // All operations should complete successfully
     assert_eq!(
         results.len(),
         5,
         "All concurrent operations should complete"
     );
 
-    // Stop the node
     node.stop_async().await.unwrap();
 }
 
@@ -209,7 +179,6 @@ async fn test_shared_node_across_tasks() {
     let temp_dir = tempdir().unwrap();
     let config = CodexConfig::new().data_dir(temp_dir.path());
 
-    // Simulate application state with shared node
     struct AppState {
         node: Arc<CodexNode>,
     }
@@ -218,26 +187,21 @@ async fn test_shared_node_across_tasks() {
         node: Arc::new(CodexNode::new(config).unwrap()),
     };
 
-    // Simulate multiple concurrent tasks
     let mut handles = Vec::new();
 
-    // Task 1: Get node info
     let node_clone = state.node.clone();
     handles.push(tokio::task::spawn(async move {
         let version = node_clone.version().unwrap();
         format!("Node version: {}", version)
     }));
 
-    // Task 2: Get peer ID
     let node_clone = state.node.clone();
     handles.push(tokio::task::spawn(async move {
         let peer_id = node_clone.peer_id().unwrap();
         format!("Peer ID: {}", peer_id)
     }));
 
-    // Task 3: Create and start a new node
     handles.push(tokio::task::spawn(async move {
-        // Use spawn_blocking for methods that need &mut self
         tokio::task::spawn_blocking(move || {
             let mut node = CodexNode::new(CodexConfig::new()).unwrap();
             node.start().unwrap();
@@ -248,9 +212,63 @@ async fn test_shared_node_across_tasks() {
         "Node started".to_string()
     }));
 
-    // Wait for all tasks
     for handle in handles {
         let result = handle.await.unwrap();
         println!("Task result: {}", result);
     }
+}
+
+#[tokio::test]
+async fn test_send_future_compatibility() {
+    let temp_dir = tempdir().unwrap();
+    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(CodexNode::new(config).unwrap());
+
+    let future = async move {
+        node.start_async().await.unwrap();
+
+        let file_path = temp_dir.path().join("test.txt");
+        std::fs::write(&file_path, b"Hello, Codex!").unwrap();
+
+        let options = codex_bindings::UploadOptions::new().filepath(&file_path);
+        let _result = codex_bindings::upload_file(&node, options).await.unwrap();
+
+        "success"
+    };
+
+    let result = tokio::task::spawn(future).await.unwrap();
+    assert_eq!(result, "success");
+}
+
+#[tokio::test]
+async fn test_async_upload_download() {
+    use codex_bindings::{DownloadStreamOptions, UploadOptions};
+
+    let temp_dir = tempdir().unwrap();
+    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(CodexNode::new(config).unwrap());
+
+    node.start_async().await.unwrap();
+
+    let file_path = temp_dir.path().join("test.txt");
+    let test_content = b"Hello, Codex async API!";
+    std::fs::write(&file_path, test_content).unwrap();
+
+    let upload_options = UploadOptions::new().filepath(&file_path);
+    let upload_result = codex_bindings::upload_file(&node, upload_options)
+        .await
+        .unwrap();
+
+    let download_path = temp_dir.path().join("downloaded.txt");
+    let download_options = DownloadStreamOptions::new(&upload_result.cid).filepath(&download_path);
+
+    let _download_result =
+        codex_bindings::download_stream(&node, &upload_result.cid, download_options)
+            .await
+            .unwrap();
+
+    let downloaded_content = std::fs::read(&download_path).unwrap();
+    assert_eq!(downloaded_content, test_content);
+
+    node.stop_async().await.unwrap();
 }

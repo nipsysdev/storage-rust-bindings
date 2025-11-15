@@ -1,8 +1,3 @@
-//! Callback mechanism for handling async operations
-//!
-//! This module provides a safe way to handle callbacks from the C library
-//! and convert them to Rust futures or streams.
-
 use crate::error::{CodexError, Result};
 use crate::ffi::{c_str_to_string, CallbackReturn};
 use libc::{c_char, c_int, c_void, size_t};
@@ -12,30 +7,21 @@ use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
-// Global mutex to serialize all C library calls to prevent race conditions
 static LIBCODEX_MUTEX: Mutex<()> = Mutex::new(());
 
-// Global registry for callback contexts - thread-safe but not thread-keyed
 static CALLBACK_REGISTRY: LazyLock<Mutex<HashMap<u64, Arc<CallbackContext>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 static NEXT_CALLBACK_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(1));
 
-/// A callback context that manages the state of an async operation
 pub struct CallbackContext {
-    /// The result of the operation
     result: Mutex<Option<Result<String>>>,
-    /// The waker to notify when the operation completes
     waker: Mutex<Option<Waker>>,
-    /// Progress callback
     progress_callback: Mutex<Option<Box<dyn Fn(usize, Option<&[u8]>) + Send>>>,
-    /// Whether the operation has completed
     completed: Mutex<bool>,
-    /// The unique ID for this context
     id: u64,
 }
 
 impl CallbackContext {
-    /// Create a new callback context
     pub fn new() -> Self {
         let id = {
             let mut next_id = NEXT_CALLBACK_ID.lock().unwrap();
@@ -52,12 +38,10 @@ impl CallbackContext {
         }
     }
 
-    /// Get the unique ID for this context
     pub fn id(&self) -> u64 {
         self.id
     }
 
-    /// Set the progress callback
     pub fn set_progress_callback<F>(&self, callback: F)
     where
         F: Fn(usize, Option<&[u8]>) + Send + 'static,
@@ -65,12 +49,10 @@ impl CallbackContext {
         *self.progress_callback.lock().unwrap() = Some(Box::new(callback));
     }
 
-    /// Set the waker for this context
     pub fn set_waker(&self, waker: Waker) {
         *self.waker.lock().unwrap() = Some(waker);
     }
 
-    /// Get the result if available
     pub fn get_result(&self) -> Option<Result<String>> {
         match &*self.result.lock().unwrap() {
             Some(Ok(s)) => Some(Ok(s.clone())),
@@ -79,12 +61,6 @@ impl CallbackContext {
         }
     }
 
-    /// Handle a callback from the C library
-    ///
-    /// # Safety
-    ///
-    /// This function dereferences raw pointers from the C library.
-    /// The caller must ensure that the pointers are valid.
     pub unsafe fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
@@ -121,8 +97,6 @@ impl CallbackContext {
                 }
             }
             CallbackReturn::Progress => {
-                let len = len;
-
                 let chunk = if !msg.is_null() {
                     unsafe { Some(std::slice::from_raw_parts(msg as *const u8, len)) }
                 } else {
@@ -136,11 +110,8 @@ impl CallbackContext {
         }
     }
 
-    /// Wait for the operation to complete synchronously
     pub fn wait(&self) -> Result<String> {
-        // Wait for completion with a timeout
         for _ in 0..600 {
-            // 60 seconds timeout
             {
                 let completed = self.completed.lock().unwrap();
                 if *completed {
@@ -150,7 +121,6 @@ impl CallbackContext {
             thread::sleep(Duration::from_millis(100));
         }
 
-        // Check if we have a result
         if let Some(result) = self.get_result() {
             result
         } else {
@@ -161,24 +131,20 @@ impl CallbackContext {
 
 impl Drop for CallbackContext {
     fn drop(&mut self) {
-        // Remove from registry when dropped
         if let Ok(mut registry) = CALLBACK_REGISTRY.lock() {
             registry.remove(&self.id);
         }
     }
 }
 
-/// A future that represents an async operation with callbacks
 pub struct CallbackFuture {
     pub(crate) context: Arc<CallbackContext>,
 }
 
 impl CallbackFuture {
-    /// Create a new callback future
     pub fn new() -> Self {
         let context = Arc::new(CallbackContext::new());
 
-        // Register the context in the global registry
         {
             let mut registry = CALLBACK_REGISTRY.lock().unwrap();
             registry.insert(context.id(), context.clone());
@@ -187,13 +153,10 @@ impl CallbackFuture {
         Self { context }
     }
 
-    /// Get a pointer to the callback ID for passing to C
     pub fn context_ptr(&self) -> *const c_void {
-        // Return the ID as a pointer value (not a real pointer)
         self.context.id() as *const c_void
     }
 
-    /// Set the progress callback
     pub fn set_progress_callback<F>(&self, callback: F)
     where
         F: Fn(usize, Option<&[u8]>) + Send + 'static,
@@ -201,7 +164,6 @@ impl CallbackFuture {
         self.context.set_progress_callback(callback);
     }
 
-    /// Wait for the operation to complete synchronously
     pub fn wait(&self) -> Result<String> {
         self.context.wait()
     }
@@ -211,10 +173,8 @@ impl std::future::Future for CallbackFuture {
     type Output = Result<String>;
 
     fn poll(self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        // Set the waker if not already set
         self.context.set_waker(cx.waker().clone());
 
-        // Check if we have a result
         if let Some(result) = self.context.get_result() {
             Poll::Ready(result)
         } else {
@@ -223,8 +183,8 @@ impl std::future::Future for CallbackFuture {
     }
 }
 
-/// Execute a function with the global libcodex mutex locked
-/// This prevents race conditions when multiple threads access the C library
+unsafe impl Send for CallbackFuture {}
+
 pub fn with_libcodex_lock<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
@@ -233,19 +193,14 @@ where
     f()
 }
 
-/// C callback function that forwards to the appropriate Rust callback context
-/// NOTE: This function is called from C code and should NOT try to acquire LIBCODEX_MUTEX
-/// as it would cause a deadlock if the C library is holding internal locks
 #[no_mangle]
 pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, resp: *mut c_void) {
     if resp.is_null() {
         return;
     }
 
-    // The resp parameter is now the callback ID (not a pointer)
     let callback_id = resp as u64;
 
-    // Look up the context in the global registry
     let context = {
         if let Ok(registry) = CALLBACK_REGISTRY.lock() {
             registry.get(&callback_id).cloned()
@@ -255,7 +210,6 @@ pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, r
     };
 
     if let Some(context) = context {
-        // Handle the callback
         unsafe {
             context.handle_callback(ret, msg, len);
         }
@@ -281,16 +235,12 @@ mod tests {
     #[test]
     fn test_callback_context_creation() {
         let context = CallbackContext::new();
-
-        // Initially no result
         assert!(context.get_result().is_none());
     }
 
     #[test]
     fn test_callback_context_success() {
         let context = CallbackContext::new();
-
-        // Test success callback
         unsafe {
             context.handle_callback(0, std::ptr::null_mut(), 0);
         }
@@ -302,8 +252,6 @@ mod tests {
     #[test]
     fn test_callback_context_error() {
         let context = CallbackContext::new();
-
-        // Test error callback
         unsafe {
             context.handle_callback(1, std::ptr::null_mut(), 0);
         }
@@ -330,29 +278,22 @@ mod tests {
         let progress_called = Arc::new(AtomicBool::new(false));
         let progress_called_clone = progress_called.clone();
 
-        // Set progress callback
         context.set_progress_callback(move |_len, _chunk| {
             progress_called_clone.store(true, Ordering::SeqCst);
         });
 
-        // Trigger progress callback
         let test_data = b"test data";
         unsafe {
             context.handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
         }
 
-        // Progress callback should have been called synchronously
         assert!(progress_called.load(Ordering::SeqCst));
-
-        // No result should be available yet
         assert!(context.get_result().is_none());
     }
 
     #[test]
     fn test_callback_future_creation() {
         let future = CallbackFuture::new();
-
-        // Should be able to get context pointer
         let ptr = future.context_ptr();
         assert!(!ptr.is_null());
     }
@@ -363,12 +304,10 @@ mod tests {
         let progress_called = Arc::new(AtomicBool::new(false));
         let progress_called_clone = progress_called.clone();
 
-        // Set progress callback
         future.set_progress_callback(move |_len, _chunk| {
             progress_called_clone.store(true, Ordering::SeqCst);
         });
 
-        // Trigger progress callback through context
         let test_data = b"test data";
         unsafe {
             future
@@ -376,20 +315,15 @@ mod tests {
                 .handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
         }
 
-        // Progress callback should have been called synchronously
         assert!(progress_called.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
     async fn test_callback_future_success() {
         let future = CallbackFuture::new();
-
-        // Simulate successful callback
         unsafe {
             future.context.handle_callback(0, std::ptr::null_mut(), 0);
         }
-
-        // Future should complete successfully
         let result = future.await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "");
@@ -398,13 +332,9 @@ mod tests {
     #[tokio::test]
     async fn test_callback_future_error() {
         let future = CallbackFuture::new();
-
-        // Simulate error callback
         unsafe {
             future.context.handle_callback(1, std::ptr::null_mut(), 0);
         }
-
-        // Future should complete with error
         let result = future.await;
         assert!(result.is_err());
     }
@@ -412,24 +342,18 @@ mod tests {
     #[test]
     fn test_callback_wait_success() {
         let context = CallbackContext::new();
-
-        // Set a result first
         unsafe {
             context.handle_callback(0, std::ptr::null_mut(), 0);
         }
-
-        // Wait should return immediately with the result
         let result = context.wait();
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_c_callback_null_context() {
-        // Test that c_callback handles null context gracefully
         unsafe {
             c_callback(0, std::ptr::null_mut(), 0, std::ptr::null_mut());
         }
-        // Should not crash
     }
 
     #[test]
@@ -438,12 +362,10 @@ mod tests {
         let context_id = future.context.id();
         let context_ptr = context_id as *mut c_void;
 
-        // Test success callback
         unsafe {
             c_callback(0, std::ptr::null_mut(), 0, context_ptr);
         }
 
-        // Check that the callback was handled
         let result = future.context.get_result();
         assert!(result.is_some());
         assert!(result.unwrap().is_ok());

@@ -1,18 +1,13 @@
-//! Types for upload operations
-
 use crate::error::{CodexError, Result};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::Arc;
 
-/// Upload strategy determines how data is uploaded to the network
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum UploadStrategy {
-    /// Upload data in chunks
     Chunked,
-    /// Upload data as a single stream
     Stream,
-    /// Automatically choose the best strategy
     Auto,
 }
 
@@ -22,23 +17,16 @@ impl Default for UploadStrategy {
     }
 }
 
-/// Progress information for upload operations
 #[derive(Debug, Clone)]
 pub struct UploadProgress {
-    /// Number of bytes uploaded
     pub bytes_uploaded: usize,
-    /// Total number of bytes to upload (if known)
     pub total_bytes: Option<usize>,
-    /// Progress percentage (0.0 to 1.0)
     pub percentage: f64,
-    /// Current chunk being uploaded (if applicable)
     pub current_chunk: Option<usize>,
-    /// Total number of chunks (if applicable)
     pub total_chunks: Option<usize>,
 }
 
 impl UploadProgress {
-    /// Create new upload progress
     pub fn new(bytes_uploaded: usize, total_bytes: Option<usize>) -> Self {
         let percentage = if let Some(total) = total_bytes {
             if total > 0 {
@@ -59,7 +47,6 @@ impl UploadProgress {
         }
     }
 
-    /// Create new chunked upload progress
     pub fn new_chunked(
         bytes_uploaded: usize,
         total_bytes: Option<usize>,
@@ -73,21 +60,14 @@ impl UploadProgress {
     }
 }
 
-/// Options for upload operations
+#[derive(Clone)]
 pub struct UploadOptions {
-    /// Path to the file to upload (if uploading from file)
     pub filepath: Option<PathBuf>,
-    /// Chunk size for chunked uploads (in bytes)
     pub chunk_size: Option<usize>,
-    /// Upload strategy to use
     pub strategy: UploadStrategy,
-    /// Progress callback function
-    pub on_progress: Option<Box<dyn Fn(UploadProgress) + Send + Sync>>,
-    /// Whether to verify the upload after completion
+    pub on_progress: Option<Arc<dyn Fn(UploadProgress) + Send + Sync>>,
     pub verify: bool,
-    /// Custom metadata to attach to the upload
     pub metadata: Option<serde_json::Value>,
-    /// Timeout for the upload operation (in seconds)
     pub timeout: Option<u64>,
 }
 
@@ -109,68 +89,59 @@ impl Default for UploadOptions {
     fn default() -> Self {
         Self {
             filepath: None,
-            chunk_size: Some(1024 * 1024), // 1 MB default
+            chunk_size: Some(1024 * 1024),
             strategy: UploadStrategy::Auto,
             on_progress: None,
             verify: true,
             metadata: None,
-            timeout: Some(300), // 5 minutes default
+            timeout: Some(300),
         }
     }
 }
 
 impl UploadOptions {
-    /// Create new upload options
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Set the file path to upload
     pub fn filepath<P: Into<PathBuf>>(mut self, path: P) -> Self {
         self.filepath = Some(path.into());
         self
     }
 
-    /// Set the chunk size for chunked uploads
     pub fn chunk_size(mut self, size: usize) -> Self {
         self.chunk_size = Some(size);
         self
     }
 
-    /// Set the upload strategy
     pub fn strategy(mut self, strategy: UploadStrategy) -> Self {
         self.strategy = strategy;
         self
     }
 
-    /// Set the progress callback
     pub fn on_progress<F>(mut self, callback: F) -> Self
     where
         F: Fn(UploadProgress) + Send + Sync + 'static,
     {
-        self.on_progress = Some(Box::new(callback));
+        self.on_progress = Some(Arc::new(callback));
         self
     }
 
-    /// Set whether to verify the upload
     pub fn verify(mut self, verify: bool) -> Self {
         self.verify = verify;
         self
     }
 
-    /// Set custom metadata
     pub fn metadata(mut self, metadata: serde_json::Value) -> Self {
         self.metadata = Some(metadata);
         self
     }
 
-    /// Set the timeout
     pub fn timeout(mut self, timeout: u64) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
-    /// Validate the upload options
     pub fn validate(&self) -> Result<()> {
         if let Some(chunk_size) = self.chunk_size {
             if chunk_size == 0 {
@@ -194,23 +165,16 @@ impl UploadOptions {
     }
 }
 
-/// Result of an upload operation
 #[derive(Debug, Clone)]
 pub struct UploadResult {
-    /// Content ID (CID) of the uploaded content
     pub cid: String,
-    /// Size of the uploaded content in bytes
     pub size: usize,
-    /// Number of chunks uploaded (if applicable)
     pub chunks: Option<usize>,
-    /// Time taken for the upload (in milliseconds)
     pub duration_ms: u64,
-    /// Whether the upload was verified (if verification was requested)
     pub verified: bool,
 }
 
 impl UploadResult {
-    /// Create a new upload result
     pub fn new(cid: String, size: usize) -> Self {
         Self {
             cid,
@@ -221,19 +185,16 @@ impl UploadResult {
         }
     }
 
-    /// Set the number of chunks
     pub fn chunks(mut self, chunks: usize) -> Self {
         self.chunks = Some(chunks);
         self
     }
 
-    /// Set the duration
     pub fn duration_ms(mut self, duration_ms: u64) -> Self {
         self.duration_ms = duration_ms;
         self
     }
 
-    /// Set whether the upload was verified
     pub fn verified(mut self, verified: bool) -> Self {
         self.verified = verified;
         self
