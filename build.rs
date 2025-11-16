@@ -81,6 +81,8 @@ fn clone_nim_codex(target_dir: &PathBuf) {
     let status = Command::new("git")
         .args(&[
             "clone",
+            "--branch",
+            "master",
             "--recurse-submodules",
             "https://github.com/codex-storage/nim-codex",
             &target_dir.to_string_lossy(),
@@ -270,28 +272,9 @@ fn link_dynamic_library(lib_dir: &PathBuf) {
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", lib_dir_abs.display());
 }
 
-fn copy_libcodex_header() -> PathBuf {
+fn generate_bindings(nim_codex_dir: &PathBuf) {
     let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    let vendor_header = PathBuf::from("vendor/libcodex.h");
-    let target_header = out_path.join("libcodex.h");
-
-    if !vendor_header.exists() {
-        panic!(
-            "vendor/libcodex.h not found. Please ensure the vendor directory is properly set up."
-        );
-    }
-
-    std::fs::copy(&vendor_header, &target_header).expect("Unable to copy libcodex.h to OUT_DIR");
-
-    println!(
-        "Copied libcodex.h from vendor to {}",
-        target_header.display()
-    );
-    target_header
-}
-
-fn generate_bindings(libcodex_header_path: &PathBuf, nim_codex_dir: &PathBuf) {
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let libcodex_header_path = nim_codex_dir.join("nimcache/release/libcodex/libcodex.h");
 
     let mut builder = bindgen::Builder::default()
         .header(libcodex_header_path.to_str().expect("Invalid path"))
@@ -348,6 +331,5 @@ fn main() {
 
     println!("cargo:rustc-link-search=native={}", lib_dir.display());
 
-    let libcodex_header_path = copy_libcodex_header();
-    generate_bindings(&libcodex_header_path, &nim_codex_dir);
+    generate_bindings(&nim_codex_dir);
 }
