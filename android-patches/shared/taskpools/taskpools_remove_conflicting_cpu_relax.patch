@@ -1,0 +1,12 @@
+--- a/vendor/nim-taskpools/taskpools/taskpools.nim
++++ b/vendor/nim-taskpools/taskpools/taskpools.nim
+@@ -10,7 +10,10 @@ when defined(windows):
+     import winlean
+else:
+  import posix
++
++when not defined(android):
+  when defined(gcc):
+    proc cpu_relax() {.importc: "cpu_relax", header: "<nimbase.h>".}
+  else:
+    proc cpu_relax() {.importc: "__builtin_ia32_pause", header: "<xmmintrin.h>".}

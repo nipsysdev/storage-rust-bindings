@@ -1,0 +1,18 @@
+--- a/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/system/countbits_impl.nim	2025-12-01 19:16:10.844007452 -0500
++++ b/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/system/countbits_impl.nim	2025-12-01 19:17:38.995742925 -0500
+@@ -14,9 +14,12 @@
+ const useBuiltins* = not defined(noIntrinsicsBitOpts)
+ const noUndefined* = defined(noUndefinedBitOpts)
+ const useGCC_builtins* = (defined(gcc) or defined(llvm_gcc) or
+-                         defined(clang)) and useBuiltins
+-const useICC_builtins* = defined(icc) and useBuiltins
+-const useVCC_builtins* = defined(vcc) and useBuiltins
++                         defined(clang)) and useBuiltins and
++                         not defined(android) and not defined(arm64) and not defined(arm)
++const useICC_builtins* = defined(icc) and useBuiltins and
++                         not defined(android) and not defined(arm64) and not defined(arm)
++const useVCC_builtins* = defined(vcc) and useBuiltins and
++                         not defined(android) and not defined(arm64) and not defined(arm)
+ const arch64* = sizeof(int) == 8
+ 
+ template countBitsImpl(n: uint32): int =

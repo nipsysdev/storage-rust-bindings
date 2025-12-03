@@ -1,0 +1,31 @@
+--- a/vendor/nim-codex/vendor/nimbus-build-system/scripts/build_nim.sh
++++ b/vendor/nim-codex/vendor/nimbus-build-system/scripts/build_nim.sh
+@@ -42,8 +42,8 @@
+   # Update csources if needed
+   if [ ! -f "$csourcesDir"/build.sh ]; then
+     echo "Updating csources..."
+-    git pull -q
++    echo "Skipping git pull - patches are applied"
+   fi
+ 
+   # Build csources
+@@ -50,8 +50,8 @@
+   # Update Nimble packages if needed
+   if [ ! -f "$nimbleDir"/nimblepkg.json ]; then
+     echo "Updating nimble packages..."
+-    git pull -q
++    echo "Skipping git pull - patches are applied"
+   fi
+ 
+   # Build nimble
+--- a/vendor/nim-codex/vendor/nimbus-build-system/scripts/build_nim.sh
++++ b/vendor/nim-codex/vendor/nimbus-build-system/scripts/build_nim.sh
+@@ -58,6 +58,6 @@
+   # Build Nim compiler
+   echo "Building Nim compiler..."
+-  "$nimDir"/bin/nim c --cpu:host --os:linux --cc:clang --clang.execlang=clang -d:release --parallel:1:0 --hints:off "$csourcesDir" "$nimbleDir"
++  "$nimDir"/bin/nim c --cpu:host --os:linux --cc:clang --clang.execlang=clang -d:release --parallel:1:0 --hints:off --noNimblePath "$csourcesDir" "$nimbleDir"
+ 
+   # Build csources
+   echo "Building csources..."
+   "$nimDir"/bin/nim c --cpu:host --os:linux --cc:clang --clang.execlang=clang -d:release --parallel:1:0 --hints:off "$csourcesDir"

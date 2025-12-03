@@ -1,0 +1,45 @@
+--- a/vendor/nim-codex/config.nims
++++ b/vendor/nim-codex/config.nims
+@@ -68,6 +68,42 @@
+   else: switch("passC", "-march=native")
+     
+ 
++# Android-specific configurations
++when defined(android):
++  # Disable x86 intrinsics for Android ARM builds
++  switch("define", "noIntrinsicsBitOpts")
++  switch("define", "NO_X86_INTRINSICS")
++  switch("define", "__NO_INLINE_ASM__")
++  switch("define", "noX86Intrinsics")
++  switch("define", "noSimd")
++  switch("define", "noInlineAsm")
++  
++  # Set Android cross-compiler
++  let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
++  let android_ar = getEnv("CODEX_ANDROID_AR", "llvm-ar")
++  
++  switch("cc", "clang")
++  switch("clang.exe", android_cc)
++  switch("clang.linker", android_cc)
++  switch("clang.ar", android_ar)
++  
++  # Android-specific compiler flags
++  when defined(arm64):
++    switch("passC", "-march=armv8-a")
++  elif defined(arm):
++    switch("passC", "-march=armv7-a")
++  elif defined(amd64):
++    switch("passC", "-march=x86-64")
++  elif defined(i386):
++    switch("passC", "-march=i686")
++  
++  # Disable libbacktrace on Android
++  switch("define", "disable_libbacktrace")
++  
++  # Android-specific defines
++  switch("define", "android")
++  switch("define", "debug")
++
+ --tlsEmulation:
+   off
+ --threads:

@@ -1,0 +1,25 @@
+--- a/vendor/constantine/constantine/platforms/isa_x86/simd_x86.nim
++++ b/vendor/constantine/constantine/platforms/isa_x86/simd_x86.nim
+@@ -9,7 +9,8 @@
+ 
+ {.push used.} # Some SIMDs are implemented but not exported.
+ 
+-static: doAssert defined(i386) or defined(amd64)
++when not defined(android) and not defined(arm64) and not defined(arm):
++  static: doAssert defined(i386) or defined(amd64)
+ 
+ # SIMD throughput and latency:
+ #   - https://software.intel.com/sites/landingpage/IntrinsicsGuide/
+@@ -17,6 +18,7 @@ static: doAssert defined(i386) or defined(amd64)
+ 
+ # Reminder: x86 is little-endian, order is [low part, high part]
+ # Documentation at https://software.intel.com/sites/landingpage/IntrinsicsGuide/
++when not defined(android) and not defined(arm64) and not defined(arm):
+ 
+ when defined(vcc):
+   {.pragma: x86_type, byCopy, header:"<intrin.h>".}
+@@ -278,3 +280,4 @@ template sha256_msg2*(a, b: m128i): m128i =
+   mm_sha256msg2_epu32(a, b)
+ template sha256_2rounds*(cdgh, abef, k: m128i): m128i =
+   mm_sha256rnds2_epu32(cdgh, abef, k)
++when not defined(android) and not defined(arm64) and not defined(arm):

@@ -1,0 +1,34 @@
+--- makefile
++++ makefile
+@@ -19,6 +19,15 @@
+ 
+ ucpu := $(shell sh -c 'uname -m | tr "[:upper:]" "[:lower:]"')
+ ifeq ($(OS),Windows_NT)
+  uos := windows
+else
+  ifeq ($(OS),android)
+    uos := linux
+    myos = linux
+    LDFLAGS += -ldl -lm
+    # Override CPU detection for Android cross-compilation
+    ifeq ($(TARGET),aarch64-linux-android)
+      ucpu = aarch64
+      mycpu = arm64
+    endif
+  else
+    uos := $(shell sh -c 'uname | tr "[:upper:]" "[:lower:]"')
+  endif
+endif
+@@ -26,7 +35,11 @@
+ 
+ ifeq ($(uos),linux)
+   myos = linux
+-  LDFLAGS += -ldl -lm -lrt
++  LDFLAGS += -ldl -lm
++  ifneq ($(OS),android)
++    LDFLAGS += -lrt
++  endif
+ endif
+ ifeq ($(uos),dragonfly)
+   myos = freebsd
+ endif

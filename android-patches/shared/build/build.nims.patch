@@ -1,0 +1,80 @@
+--- a/vendor/nim-codex/build.nims	2025-12-03 06:29:39.647231359 -0500
++++ b/vendor/nim-codex/build.nims	2025-12-03 06:32:43.595067972 -0500
+@@ -28,6 +28,13 @@
+ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
+   if not dirExists "build":
+     mkDir "build"
++  
++  var extra_params = params
++
++  # Android-specific compiler flags
++  when defined(android):
++    let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
++    extra_params &= " --cpu:arm64 --os:android --cc:clang --clang.execlang=" & android_cc
+ 
+   if `type` == "dynamic":
+     let lib_name = (
+@@ -35,19 +42,35 @@
+       elif defined(macosx): name & ".dylib"
+       else: name & ".so"
+     )
++    # Set Leopard CMake flags based on environment variables
++    var leopard_cmake_flags = "-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release"
++    when defined(android):
++      if existsEnv("ANDROID_ARM64_BUILD"):
++        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
++      if existsEnv("NO_X86_INTRINSICS"):
++        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
++    
+     exec "nim c" & " --out:build/" & lib_name &
+       " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
+       "--nimMainPrefix:libcodex -d:noSignalHandler " &
+       "-d:LeopardExtraCompilerFlags=-fPIC " & "-d:chronicles_runtime_filtering " &
+-      "-d:chronicles_log_level=TRACE " & params & " " & srcDir & name & ".nim"
++      "-d:chronicles_log_level=TRACE -d:LeopardCmakeFlags=\"" & leopard_cmake_flags & "\" " & extra_params & " " & srcDir & name & ".nim"
+   else:
++    # Set Leopard CMake flags based on environment variables
++    var leopard_cmake_flags = "-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release"
++    when defined(android):
++      if existsEnv("ANDROID_ARM64_BUILD"):
++        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
++      if existsEnv("NO_X86_INTRINSICS"):
++        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
++    
+     exec "nim c" & " --out:build/" & name &
+       ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
+       "--nimMainPrefix:libcodex -d:noSignalHandler " &
+       "-d:LeopardExtraCompilerFlags=-fPIC " &
+       "-d:chronicles_runtime_filtering " &
+-      "-d:chronicles_log_level=TRACE " &
+-      params & " " & srcDir & name & ".nim"
++      "-d:chronicles_log_level=TRACE -d:LeopardCmakeFlags=\"" & leopard_cmake_flags & "\" " &
++      extra_params & " " & srcDir & name & ".nim"
+ 
+ proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
+   buildBinary name, srcDir, params
+@@ -153,6 +176,11 @@
+       if param.len > 0 and param.startsWith("-"):
+         params.add " " & param
+ 
++  # Android-specific parameters
++  when defined(android):
++    if existsEnv("CODEX_ANDROID_DEFINES"):
++      params.add " " & getEnv("CODEX_ANDROID_DEFINES")
++
+   let name = "libcodex"
+   buildLibrary name, "library/", params, "dynamic"
+ 
+@@ -163,5 +191,10 @@
+       if param.len > 0 and param.startsWith("-"):
+         params.add " " & param
+ 
++  # Android-specific parameters
++  when defined(android):
++    if existsEnv("CODEX_ANDROID_DEFINES"):
++      params.add " " & getEnv("CODEX_ANDROID_DEFINES")
++
+   let name = "libcodex"
+-  buildLibrary name, "library/", params, "static"
++  buildLibrary name, "library/", params, "static"
+\ No newline at end of file

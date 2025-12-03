@@ -1,0 +1,32 @@
+--- a/vendor/constantine/constantine/platforms/constant_time/multiplexers.nim
++++ b/vendor/constantine/constantine/platforms/constant_time/multiplexers.nim
+@@ -189,7 +189,7 @@ func mux*[T](ctl: CTBool[T], x, y: T): T {.inline.}=
+   ## So equivalent to ctl? x: y
+   when nimvm:
+     mux_fallback(ctl, x, y)
+   else:
+-    when X86 and GCC_Compatible:
++    when X86 and GCC_Compatible and not defined(android) and not defined(arm64) and not defined(arm):
+       mux_x86(ctl, x, y)
+     else:
+       mux_fallback(ctl, x, y)
+@@ -202,7 +202,7 @@ func mux*[T: CTBool](ctl: CTBool, x, y: T): T {.inline.}=
+   ## So equivalent to ctl? x: y
+   when nimvm:
+     mux_fallback(ctl, x, y)
+   else:
+-    when X86 and GCC_Compatible:
++    when X86 and GCC_Compatible and not defined(android) and not defined(arm64) and not defined(arm):
+       mux_x86(ctl, x, y)
+     else:
+       mux_fallback(ctl, x, y)
+@@ -214,7 +214,7 @@ func ccopy*[T](ctl: CTBool[T], x: var T, y: T) {.inline.}=
+   ## Copy ``y`` into ``x`` if ``ctl`` is true
+   when nimvm:
+     ccopy_fallback(ctl, x, y)
+   else:
+-    when X86 and GCC_Compatible:
++    when X86 and GCC_Compatible and not defined(android) and not defined(arm64) and not defined(arm):
+       ccopy_x86(ctl, x, y)
+     else:
+       ccopy_fallback(ctl, x, y)

@@ -1,0 +1,21 @@
+--- a/vendor/nim-codex/vendor/nim-secp256k1/vendor/secp256k1/src/scalar_4x64_impl.h
++++ b/vendor/nim-codex/vendor/nim-secp256k1/vendor/secp256k1/src/scalar_4x64_impl.h
+@@ -347,6 +347,7 @@
+ 
+ static void secp256k1_scalar_reduce_512(secp256k1_scalar *r, const uint64_t *l) {
+-#ifdef USE_ASM_X86_64
++#if defined(USE_ASM_X86_64) && !defined(__aarch64__) && !defined(__arm__)
++/* Disable x86 assembly on ARM64/ARM to prevent compilation errors */
+     /* Reduce 512 bits into 385. */
+     uint64_t m0, m1, m2, m3, m4, m5, m6;
+     uint64_t p0, p1, p2, p3, p4;
+@@ -677,6 +678,7 @@
+ }
+ 
+ static void secp256k1_scalar_mul_512(uint64_t *l8, const secp256k1_scalar *a, const secp256k1_scalar *b) {
+-#ifdef USE_ASM_X86_64
++#if defined(USE_ASM_X86_64) && !defined(__aarch64__) && !defined(__arm__)
++/* Disable x86 assembly on ARM64/ARM to prevent compilation errors */
+     const uint64_t *pb = b->d;
+     __asm__ __volatile__(
+     /* Preload */
