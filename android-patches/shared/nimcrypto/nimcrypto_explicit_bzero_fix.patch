@@ -1,0 +1,10 @@
+--- /vendor/nim-codex/utils.nim
++++ /vendor/nim-codex/utils.nim
+@@ -198,7 +198,7 @@ proc stripSpaces*(s: string): string =
+     result &= i
+
+-when defined(linux):
++when defined(linux) and not defined(android):
+   proc c_explicit_bzero(
+     s: pointer, n: csize_t
+   ) {.importc: "explicit_bzero", header: "string.h".}

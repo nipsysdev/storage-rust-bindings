@@ -1,0 +1,79 @@
+--- a/vendor/nim-codex/android_stubs.c
++++ b/vendor/nim-codex/android_stubs.c
+@@ -0,0 +1,76 @@
++/*
++ * Android POSIX compatibility stubs
++ * Provides implementations for missing POSIX functions on Android
++ */
++
++#include "android_fix.h"
++#include <stdio.h>
++#include <time.h>
++
++#ifdef __ANDROID__
++
++// Stub implementations for missing POSIX functions
++
++char *getlogin(void) {
++    return android_getlogin();
++}
++
++int gethostname(char *name, size_t len) {
++    return android_gethostname(name, len);
++}
++
++int flock(int fd, int operation) {
++    return android_flock(fd, operation);
++}
++
++// Android doesn't have setrlimit, provide a stub
++int setrlimit(int resource, const struct rlimit *rlp) {
++    errno = ENOSYS;
++    return -1;
++}
++
++// Android doesn't have getrlimit, provide a stub
++int getrlimit(int resource, struct rlimit *rlp) {
++    errno = ENOSYS;
++    return -1;
++}
++
++// Android doesn't have getloadavg, provide a stub
++int getloadavg(double loadavg[], int nelem) {
++    if (nelem > 0) loadavg[0] = 0.0;
++    if (nelem > 1) loadavg[1] = 0.0;
++    if (nelem > 2) loadavg[2] = 0.0;
++    return 0;
++}
++
++// Android doesn't have getpagesize, provide a stub
++int getpagesize(void) {
++    return 4096; // Standard page size
++}
++
++// Android doesn't have getdtablesize, provide a stub
++int getdtablesize(void) {
++    return 1024; // Reasonable default
++}
++
++// Android doesn't have ctermid, provide a stub
++char *ctermid(char *s) {
++    static char termname[] = "/dev/tty";
++    if (s == NULL) {
++        return termname;
++    } else {
++        strcpy(s, termname);
++        return s;
++    }
++}
++
++// Android doesn't have ttyname, provide a stub
++char *ttyname(int fd) {
++    static char devtty[] = "/dev/tty";
++    if (isatty(fd)) {
++        return devtty;
++    }
++    return NULL;
++}
++
++#endif // __ANDROID__

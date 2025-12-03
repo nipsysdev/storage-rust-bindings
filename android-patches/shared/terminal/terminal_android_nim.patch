@@ -1,0 +1,52 @@
+--- a/vendor/nim-codex/vendor/nim-codex/terminal/terminal_android.nim
++++ b/vendor/nim-codex/vendor/nim-codex/terminal/terminal_android.nim
+@@ -0,0 +1,49 @@
++## Android terminal compatibility module
++## Provides terminal I/O functionality for Android platforms
++
++when defined(android):
++  import termios, os, posix
++  
++  proc androidIsTerminal*(fd: FileHandle): bool =
++    ## Check if file descriptor is a terminal on Android
++    when defined(android):
++      var term: Termios
++      return tcgetattr(fd, addr term) == 0
++    else:
++      return isatty(fd.cint) != 0
++  
++  proc androidTerminalSize*(fd: FileHandle): tuple[rows, cols: int] =
++    ## Get terminal size on Android
++    when defined(android):
++      var winsize: TWinSize
++      if ioctl(fd.cint, TIOCGWINSZ, addr winsize) == 0:
++        return (winsize.ws_row.int, winsize.ws_col.int)
++      else:
++        return (24, 80)  # Default fallback
++    else:
++      # Use standard terminal size detection
++      return (24, 80)
++  
++  proc androidSetRawMode*(fd: FileHandle): bool =
++    ## Set terminal to raw mode on Android
++    when defined(android):
++      var term: Termios
++      if tcgetattr(fd.cint, addr term) == 0:
++        var raw = term
++        raw.c_lflag = raw.c_lflag and not (ICANON or ECHO)
++        return tcsetattr(fd.cint, TCSANOW, addr raw) == 0
++      return false
++    else:
++      return true
++  
++  export androidIsTerminal, androidTerminalSize, androidSetRawMode
++
++else:
++  # Non-Android platforms use standard terminal handling
++  proc isTerminal*(fd: FileHandle): bool =
++    return isatty(fd.cint) != 0
++  
++  proc terminalSize*(fd: FileHandle): tuple[rows, cols: int] =
++    return (24, 80)  # Default fallback
++  
++  export isTerminal, terminalSize

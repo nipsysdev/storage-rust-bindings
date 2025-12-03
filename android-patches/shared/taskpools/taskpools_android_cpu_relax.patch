@@ -1,0 +1,14 @@
+--- a/vendor/nim-taskpools/taskpools/taskpools.nim
++++ b/vendor/nim-taskpools/taskpools/taskpools.nim
+@@ -51,6 +51,12 @@
+   ./tasks
+ 
++# Android-specific fix for cpuRelax function
++when defined(android) and (defined(arm64) or defined(arm)):
++  proc cpuRelax* {.inline.} =
++    # Use a simple memory barrier instead of the x86 pause instruction
++    {.emit: """asm volatile("" ::: "memory");""".}
++
+ export
+   # flowvars
+   Flowvar, isSpawned, isReady, sync, tasks

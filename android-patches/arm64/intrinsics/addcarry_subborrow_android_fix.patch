@@ -1,0 +1,38 @@
+--- a/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
++++ b/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
+@@ -135,7 +135,7 @@ func addC*(cOut: var Carry, sum: var Ct[uint32], a, b: Ct[uint32], cIn: Carry)
+   ## Addition with carry
+   ## (CarryOut, Sum) <- a + b + CarryIn
+   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+-    cOut = addcarry_u32(cIn, a, b, sum)
++    cOut = addcarry_u32(cIn, a, b, sum)
+   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+     var carryOut: Ct[uint32]
+     sum = builtin_addcl(a, b, cast[Ct[uint32]](cIn), carryOut)
+@@ -149,7 +149,7 @@ func subB*(bOut: var Borrow, diff: var Ct[uint32], a, b: Ct[uint32], bIn: Borrow)
+   ## Substraction with borrow
+   ## (BorrowOut, Diff) <- a - b - borrowIn
+   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+-    bOut = subborrow_u32(bIn, a, b, diff)
++    bOut = subborrow_u32(bIn, a, b, diff)
+   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+     var borrowOut: Ct[uint32]
+     diff = builtin_subcl(a, b, cast[Ct[uint32]](bIn), borrowOut)
+@@ -164,7 +164,7 @@ func addC*(cOut: var Carry, sum: var Ct[uint64], a, b: Ct[uint64], cIn: Carry)
+   ## Addition with carry
+   ## (CarryOut, Sum) <- a + b + CarryIn
+   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+-    cOut = addcarry_u64(cIn, a, b, sum)
++    cOut = addcarry_u64(cIn, a, b, sum)
+   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+     var carryOut: Ct[uint64]
+     sum = builtin_addcll(a, b, cast[Ct[uint64]](cIn), carryOut)
+@@ -189,7 +189,7 @@ func subB*(bOut: var Borrow, diff: var Ct[uint64], a, b: Ct[uint64], bIn: Borrow)
+   ## Substraction with borrow
+   ## (BorrowOut, Diff) <- a - b - borrowIn
+   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+-    bOut = subborrow_u64(bIn, a, b, diff)
++    bOut = subborrow_u64(bIn, a, b, diff)
+   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+     var borrowOut: Ct[uint64]
+     diff = builtin_subcll(a, b, cast[Ct[uint64]](bIn), borrowOut)

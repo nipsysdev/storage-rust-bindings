@@ -1,0 +1,21 @@
+--- a/vendor/nim-codex/Makefile
++++ b/vendor/nim-codex/Makefile
+@@ -78,7 +78,7 @@
+ 
+ ifeq ($(NIM_PARAMS),)
+ # "variables.mk" was not included, so we update the submodules.
+-GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
++GIT_SUBMODULE_UPDATE := echo "Skipping git submodule update - patches are applied"
+ .DEFAULT:
+ 	+@ echo -e "Git submodules not found. Running '$(GIT_SUBMODULE_UPDATE)'.\n"; \
+ 		$(GIT_SUBMODULE_UPDATE); \
+@@ -86,6 +86,9 @@
+ # Now that the included *.mk files appeared, and are newer than this file, Make will restart itself:
+ # https://www.gnu.org/software/make/manual/make.html#Remaking-Makefiles
+ #
++# PATCHED: Disabled submodule update to prevent overwriting Android patches
++# The build system ensures NIM_PARAMS is set to avoid this target
++#
+ # After restarting, it will execute its original goal, so we don't have to start a child Make here
+ # with "$(MAKE) $(MAKECMDGOALS)". Isn't hidden control flow great?
+ 
