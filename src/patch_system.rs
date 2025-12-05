@@ -247,13 +247,8 @@ impl PatchEngine {
             return Ok(());
         }
 
-        let output = Command::new("patch")
-            .arg("-p1")
-            .arg("--forward")
-            .arg("--ignore-whitespace")
-            .arg("-s")
-            .arg("--verbose")
-            .arg("-i")
+        let output = Command::new("git")
+            .arg("apply")
             .arg(patch_file)
             .current_dir(".")
             .output()
@@ -318,13 +313,9 @@ impl PatchEngine {
     }
 
     fn is_patch_already_applied(&self, patch_file: &Path) -> Result<bool, PatchError> {
-        let output = Command::new("patch")
-            .arg("-p1")
-            .arg("--dry-run")
-            .arg("-N")
-            .arg("-s") // Silent mode
-            .arg("-f") // Force mode
-            .arg("-i")
+        let output = Command::new("git")
+            .arg("apply")
+            .arg("--check")
             .arg(patch_file)
             .current_dir(".")
             .output()
@@ -333,14 +324,8 @@ impl PatchEngine {
             })?;
 
         let stderr = String::from_utf8_lossy(&output.stderr);
-        let stdout = String::from_utf8_lossy(&output.stdout);
 
-        let already_applied = stderr.contains("already applied")
-            || stderr.contains("previously applied")
-            || stdout.contains("already applied")
-            || stdout.contains("previously applied")
-            || stderr.contains("UNEXPECTED CHANGES")
-            || stdout.contains("UNEXPECTED CHANGES");
+        let already_applied = stderr.contains("patch does not apply");
 
         Ok(already_applied)
     }
