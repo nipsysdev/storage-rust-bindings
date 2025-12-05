@@ -1,15 +1,16 @@
 --- a/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/pure/terminal.nim
 +++ b/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/pure/terminal.nim
-@@ -331,7 +331,7 @@
+@@ -331,7 +331,8 @@
          return int(win.ws_row)
      return 0
  
 -  var L_ctermid{.importc, header: "<stdio.h>".}: cint
-+  when not defined(android): var L_ctermid{.importc, header: "<stdio.h>".}: cint
++  when not defined(android):
++    var L_ctermid{.importc, header: "<stdio.h>".}: cint
  
    proc terminalWidth*(): int =
      ## Returns some reasonable terminal width from either standard file
-@@ -355,12 +355,16 @@
+@@ -355,12 +356,16 @@
        return w
      w = terminalWidthIoctl([0, 1, 2]) # Try standard file descriptors
      if w > 0: return w
@@ -32,7 +33,7 @@
      return 80 # Finally default to venerable value
  
    proc terminalHeight*(): int =
-@@ -389,12 +393,16 @@
+@@ -389,12 +394,16 @@
        return h
      h = terminalHeightIoctl([0, 1, 2]) # Try standard file descriptors
      if h > 0: return h

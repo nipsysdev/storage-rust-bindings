@@ -1,38 +1,68 @@
---- a/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
-+++ b/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
-@@ -135,7 +135,7 @@ func addC*(cOut: var Carry, sum: var Ct[uint32], a, b: Ct[uint32], cIn: Carry)
+--- a/vendor/nim-codex/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
++++ b/vendor/nim-codex/vendor/constantine/constantine/platforms/intrinsics/addcarry_subborrow.nim
+@@ -89,7 +89,7 @@
+ # Note: GCC before 2017 had incorrect codegen in some cases:
+ # - https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81300
+ 
+-when X86:
++when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+   when defined(windows):
+     {.pragma: intrinsics, header:"<intrin.h>", nodecl.}
+   else:
+@@ -114,7 +114,7 @@
+   template subborrow_u64(borrowIn: Borrow, a, b: Ct[uint64], sum: var Ct[uint64]): Borrow =
+     subborrow_u64(borrowIn, cast[culonglong](a), cast[culonglong](b), cast[ptr culonglong](sum.addr)[])
+ 
+-elif defined(clang):
++elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+   func builtin_addcl(x, y: Ct[uint32], carryIn: Ct[uint32], carryOut: var Ct[uint32]): Ct[uint32] {.importc: "__builtin_addcl", nodecl.}
+   func builtin_subcl(x, y: Ct[uint32], carryIn: Ct[uint32], carryOut: var Ct[uint32]): Ct[uint32] {.importc: "__builtin_subcl", nodecl.}
+ 
+@@ -135,9 +135,9 @@
+ func addC*(cOut: var Carry, sum: var Ct[uint32], a, b: Ct[uint32], cIn: Carry) {.inline.} =
    ## Addition with carry
    ## (CarryOut, Sum) <- a + b + CarryIn
-   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
--    cOut = addcarry_u32(cIn, a, b, sum)
-+    cOut = addcarry_u32(cIn, a, b, sum)
-   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+-  when X86:
++  when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+     cOut = addcarry_u32(cIn, a, b, sum)
+-  elif defined(clang):
++  elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
      var carryOut: Ct[uint32]
      sum = builtin_addcl(a, b, cast[Ct[uint32]](cIn), carryOut)
-@@ -149,7 +149,7 @@ func subB*(bOut: var Borrow, diff: var Ct[uint32], a, b: Ct[uint32], bIn: Borrow)
+     cOut = cast[Carry](carryOut)
+@@ -149,9 +149,9 @@
+ func subB*(bOut: var Borrow, diff: var Ct[uint32], a, b: Ct[uint32], bIn: Borrow) {.inline.} =
    ## Substraction with borrow
    ## (BorrowOut, Diff) <- a - b - borrowIn
-   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
--    bOut = subborrow_u32(bIn, a, b, diff)
-+    bOut = subborrow_u32(bIn, a, b, diff)
-   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+-  when X86:
++  when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+     bOut = subborrow_u32(bIn, a, b, diff)
+-  elif defined(clang):
++  elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
      var borrowOut: Ct[uint32]
      diff = builtin_subcl(a, b, cast[Ct[uint32]](bIn), borrowOut)
-@@ -164,7 +164,7 @@ func addC*(cOut: var Carry, sum: var Ct[uint64], a, b: Ct[uint64], cIn: Carry)
+     bOut = cast[Borrow](borrowOut)
+@@ -164,9 +164,9 @@
+ func addC*(cOut: var Carry, sum: var Ct[uint64], a, b: Ct[uint64], cIn: Carry) {.inline.} =
    ## Addition with carry
    ## (CarryOut, Sum) <- a + b + CarryIn
-   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
--    cOut = addcarry_u64(cIn, a, b, sum)
-+    cOut = addcarry_u64(cIn, a, b, sum)
-   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+-  when X86:
++  when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+     cOut = addcarry_u64(cIn, a, b, sum)
+-  elif defined(clang):
++  elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
      var carryOut: Ct[uint64]
      sum = builtin_addcll(a, b, cast[Ct[uint64]](cIn), carryOut)
-@@ -189,7 +189,7 @@ func subB*(bOut: var Borrow, diff: var Ct[uint64], a, b: Ct[uint64], bIn: Borrow)
+     cOut = cast[Carry](carryOut)
+@@ -189,9 +189,9 @@
+ func subB*(bOut: var Borrow, diff: var Ct[uint64], a, b: Ct[uint64], bIn: Borrow) {.inline.} =
    ## Substraction with borrow
    ## (BorrowOut, Diff) <- a - b - borrowIn
-   when X86 and not defined(android) and not defined(arm64) and not defined(arm):
--    bOut = subborrow_u64(bIn, a, b, diff)
-+    bOut = subborrow_u64(bIn, a, b, diff)
-   elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
+-  when X86:
++  when X86 and not defined(android) and not defined(arm64) and not defined(arm):
+     bOut = subborrow_u64(bIn, a, b, diff)
+-  elif defined(clang):
++  elif defined(clang) and not defined(android) and not defined(arm64) and not defined(arm):
      var borrowOut: Ct[uint64]
      diff = builtin_subcll(a, b, cast[Ct[uint64]](bIn), borrowOut)
+     bOut = cast[Borrow](borrowOut)

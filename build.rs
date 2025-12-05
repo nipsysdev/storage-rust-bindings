@@ -1,5 +1,5 @@
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 
 use crate::patch_system::{get_android_arch_from_target, PatchEngine};
@@ -139,15 +139,9 @@ fn setup_android_cross_compilation(target: String) {
         }
     }
 
-    let terminal_fix_file_abs = std::env::current_dir()
-        .unwrap()
-        .join("vendor/nim-codex/android_terminal_fix.h");
-
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let terminal_fix_obj = format!("{}/android_terminal_fix.o", out_dir);
     let android_fix_obj = format!("{}/android_fix.o", out_dir);
-    println!("cargo:rustc-link-arg={}", terminal_fix_obj);
     println!("cargo:rustc-link-arg={}", android_fix_obj);
 
     unsafe {
@@ -158,12 +152,6 @@ fn setup_android_cross_compilation(target: String) {
         env::set_var("CODEX_ANDROID_RANLIB", &ranlib);
         env::set_var("CODEX_ANDROID_DEFINES", &android_defines);
         env::set_var("CODEX_ANDROID_ARCH_FLAG", arch_flag);
-        let terminal_fix_obj = format!("{}/android_terminal_fix.o", env::var("OUT_DIR").unwrap());
-        env::set_var("CODEX_ANDROID_TERMINAL_FIX_OBJ", terminal_fix_obj);
-        env::set_var(
-            "CODEX_ANDROID_TERMINAL_FIX_FILE",
-            terminal_fix_file_abs.to_str().unwrap(),
-        );
 
         env::set_var("CODEX_LIB_PARAMS", &android_defines);
 
@@ -210,99 +198,6 @@ fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-linker={}", cc);
 
     println!("Android cross-compilation setup complete for {}", target);
-}
-
-fn compile_android_fixes_after_patches(target: String) -> Result<(), Box<dyn std::error::Error>> {
-    let android_ndk = env::var("ANDROID_NDK_ROOT")
-        .or_else(|_| env::var("ANDROID_NDK_HOME"))
-        .unwrap_or_else(|_| String::from("/home/lowkey/Android/Sdk/ndk/26.2.11394342"));
-
-    let toolchain_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
-    let cc = format!("{}/{}21-clang", toolchain_path, target);
-
-    let terminal_fix_file = "vendor/nim-codex/android_terminal_fix.h";
-    let terminal_fix_obj = format!("{}/android_terminal_fix.o", env::var("OUT_DIR").unwrap());
-
-    if !Path::new(terminal_fix_file).exists() {
-        return Err(format!("Terminal fix file not found: {}", terminal_fix_file).into());
-    }
-
-    let terminal_fix_c = format!("{}/android_terminal_fix.c", env::var("OUT_DIR").unwrap());
-    let terminal_fix_file_abs = std::env::current_dir().unwrap().join(terminal_fix_file);
-    std::fs::write(
-        &terminal_fix_c,
-        format!(
-            r#"
-#include "{}"
-"#,
-            terminal_fix_file_abs.display()
-        ),
-    )?;
-
-    // Compile the terminal fix
-    let terminal_fix_cmd = format!(
-        "{} -c {} -o {} -fPIC -DANDROID",
-        cc, terminal_fix_c, terminal_fix_obj
-    );
-
-    println!("Compiling Android terminal fix: {}", terminal_fix_cmd);
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(&terminal_fix_cmd)
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to compile Android terminal fix: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    // Compile the general Android fix for all architectures
-    let android_fix_file = "vendor/nim-codex/android_fix.h";
-    let android_fix_obj = format!("{}/android_fix.o", env::var("OUT_DIR").unwrap());
-
-    // Check if the Android fix file exists (should be copied by patch system)
-    if !Path::new(android_fix_file).exists() {
-        return Err(format!("Android fix file not found: {}", android_fix_file).into());
-    }
-
-    // Create a C file that includes our header for compilation
-    let android_fix_c = format!("{}/android_fix.c", env::var("OUT_DIR").unwrap());
-    let android_fix_file_abs = std::env::current_dir().unwrap().join(android_fix_file);
-    std::fs::write(
-        &android_fix_c,
-        format!(
-            r#"
-#include "{}"
-"#,
-            android_fix_file_abs.display()
-        ),
-    )?;
-
-    // Compile the Android fix
-    let android_fix_cmd = format!(
-        "{} -c {} -o {} -fPIC -DANDROID",
-        cc, android_fix_c, android_fix_obj
-    );
-
-    println!("Compiling Android fix: {}", android_fix_cmd);
-    let output = Command::new("sh")
-        .arg("-c")
-        .arg(&android_fix_cmd)
-        .output()?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Failed to compile Android fix: {}",
-            String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
-    }
-
-    println!("✅ Android fixes compiled successfully");
-    Ok(())
 }
 
 fn get_nim_codex_dir() -> PathBuf {
@@ -442,8 +337,6 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
         let ranlib = env::var("CODEX_ANDROID_RANLIB").unwrap_or_default();
         let android_defines = env::var("CODEX_ANDROID_DEFINES").unwrap_or_default();
         let arch_flag = env::var("CODEX_ANDROID_ARCH_FLAG").unwrap_or_default();
-        let terminal_fix_obj = env::var("CODEX_ANDROID_TERMINAL_FIX_OBJ").unwrap_or_default();
-        let terminal_fix_file = env::var("CODEX_ANDROID_TERMINAL_FIX_FILE").unwrap_or_default();
 
         let mut make_cmd = Command::new("make");
         make_cmd.args(&["-j12", "-C", &nim_codex_dir.to_string_lossy(), "libcodex"]);
@@ -458,8 +351,6 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
         make_cmd.env("CODEX_ANDROID_RANLIB", &ranlib);
         make_cmd.env("CODEX_ANDROID_DEFINES", &android_defines);
         make_cmd.env("CODEX_ANDROID_ARCH_FLAG", &arch_flag);
-        make_cmd.env("CODEX_ANDROID_TERMINAL_FIX_OBJ", &terminal_fix_obj);
-        make_cmd.env("CODEX_ANDROID_TERMINAL_FIX_FILE", &terminal_fix_file);
         make_cmd.env("V", "1");
 
         make_cmd.env("CODEX_LIB_PARAMS", &android_defines);
@@ -489,12 +380,8 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
         make_cmd.env("CMAKE_AR", &ar);
         make_cmd.env("CMAKE_RANLIB", &ranlib);
 
-        let terminal_fix_file_abs = std::env::current_dir()
-            .unwrap()
-            .join("vendor/nim-codex/android_terminal_fix.h");
         let cmake_android_defines = format!(
-            "-include {} -DNO_TERMIOS -DNO_TERMINFO -DNO_X86_INTRINSICS -DBR_NO_X86_INTRINSICS -DBR_NO_X86 -DBR_NO_ASM",
-            terminal_fix_file_abs.display()
+            "-include -DNO_TERMIOS -DNO_TERMINFO -DNO_X86_INTRINSICS -DBR_NO_X86_INTRINSICS -DBR_NO_X86 -DBR_NO_ASM",
         );
         make_cmd.env("CMAKE_C_FLAGS", &cmake_android_defines);
         make_cmd.env("CMAKE_CXX_FLAGS", &cmake_android_defines);
@@ -749,10 +636,6 @@ fn main() {
                 }
             }
         };
-
-        if let Err(e) = compile_android_fixes_after_patches(target) {
-            panic!("Failed to compile Android fixes: {}", e);
-        }
     }
 
     let lib_dir = nim_codex_dir.join("build");

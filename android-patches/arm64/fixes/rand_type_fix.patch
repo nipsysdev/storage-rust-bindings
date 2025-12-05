@@ -1,7 +1,8 @@
 --- a/vendor/nim-codex/codex/blockexchange/engine/engine.nim
 +++ b/vendor/nim-codex/codex/blockexchange/engine/engine.nim
-@@ -370,7 +370,7 @@
-         }
+@@ -369,7 +369,7 @@
+           else:
+             0.milliseconds
  
          let retryDelay =
 -          max(secs(rand(self.pendingBlocks.retryInterval.secs)), nextDiscovery)
@@ -9,3 +10,5 @@
  
          # We now wait for a bit and then retry. If the handle gets completed in the
          # meantime (cause the presence handler might have requested the block and
+         # got it from another peer) the handle will be removed from the pending
+         # set and the retry will be cancelled.
