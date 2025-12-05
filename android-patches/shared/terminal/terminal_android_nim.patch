@@ -6,7 +6,7 @@
 +
 +when defined(android):
 +  import termios, os, posix
-+  
++
 +  proc androidIsTerminal*(fd: FileHandle): bool =
 +    ## Check if file descriptor is a terminal on Android
 +    when defined(android):
@@ -14,7 +14,7 @@
 +      return tcgetattr(fd, addr term) == 0
 +    else:
 +      return isatty(fd.cint) != 0
-+  
++
 +  proc androidTerminalSize*(fd: FileHandle): tuple[rows, cols: int] =
 +    ## Get terminal size on Android
 +    when defined(android):
@@ -26,7 +26,7 @@
 +    else:
 +      # Use standard terminal size detection
 +      return (24, 80)
-+  
++
 +  proc androidSetRawMode*(fd: FileHandle): bool =
 +    ## Set terminal to raw mode on Android
 +    when defined(android):
@@ -38,15 +38,15 @@
 +      return false
 +    else:
 +      return true
-+  
++
 +  export androidIsTerminal, androidTerminalSize, androidSetRawMode
 +
 +else:
 +  # Non-Android platforms use standard terminal handling
 +  proc isTerminal*(fd: FileHandle): bool =
 +    return isatty(fd.cint) != 0
-+  
++
 +  proc terminalSize*(fd: FileHandle): tuple[rows, cols: int] =
 +    return (24, 80)  # Default fallback
-+  
++
 +  export isTerminal, terminalSize
