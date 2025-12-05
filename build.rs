@@ -171,6 +171,9 @@ fn setup_android_cross_compilation(target: String) {
         env::set_var("NIM_ARCH", arch);
 
         env::set_var("ANDROID", "1");
+        env::set_var("CODEX_SKIP_GIT_RESET", "1");
+        env::set_var("CODEX_SKIP_SUBMODULE_RESET", "1");
+        env::set_var("CODEX_SKIP_SUBMODULE_UPDATE", "1");
     }
 
     println!("cargo:rustc-link-lib=dylib=android");
