@@ -1,19 +1,12 @@
-//! Patch System
-//!
-//! A minimal, reliable patch system that uses the standard `patch` command
-//! with recursive patch discovery for automatic patch management.
-
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Patch engine that uses the standard patch command
 pub struct PatchEngine {
     verbose: bool,
     patches_dir: PathBuf,
 }
 
-/// Patch operation errors
 #[derive(Debug, thiserror::Error)]
 pub enum PatchError {
     #[error("Failed to discover patches: {0}")]
@@ -30,7 +23,6 @@ pub enum PatchError {
 }
 
 impl PatchEngine {
-    /// Create a new patch engine
     pub fn new(verbose: bool) -> Result<Self, PatchError> {
         let patches_dir = PathBuf::from("android-patches");
 
@@ -40,18 +32,15 @@ impl PatchEngine {
         })
     }
 
-    /// Discover patches for a specific architecture and shared patches
     fn discover_all_patches(&self, arch: &str) -> Result<(Vec<String>, Vec<String>), PatchError> {
         let mut arch_patches = Vec::new();
         let mut shared_patches = Vec::new();
 
-        // Discover architecture-specific patches
         let arch_dir = self.patches_dir.join(arch);
         if arch_dir.exists() {
             self.find_patch_files_recursive(&arch_dir, &mut arch_patches, "")?;
         }
 
-        // Discover shared patches
         let shared_dir = self.patches_dir.join("shared");
         if shared_dir.exists() {
             self.find_patch_files_recursive(&shared_dir, &mut shared_patches, "")?;
@@ -69,7 +58,6 @@ impl PatchEngine {
         Ok((arch_patches, shared_patches))
     }
 
-    /// Recursively find all patch files in a directory
     fn find_patch_files_recursive(
         &self,
         dir: &Path,
@@ -114,7 +102,6 @@ impl PatchEngine {
         Ok(())
     }
 
-    /// Apply all patches for a specific architecture
     pub fn apply_patches_for_arch(&self, arch: &str) -> Result<Vec<String>, PatchError> {
         let (arch_patches, shared_patches) = self.discover_all_patches(arch)?;
 
@@ -129,7 +116,6 @@ impl PatchEngine {
         let mut applied_arch_patches = Vec::new();
         let mut failed_arch_patches = Vec::new();
 
-        // Apply architecture-specific patches
         for patch_file in arch_patches {
             let patch_path = self.patches_dir.join(arch).join(&patch_file);
 
@@ -154,7 +140,6 @@ impl PatchEngine {
             }
         }
 
-        // Apply shared patches
         let mut applied_shared_patches = Vec::new();
         let mut failed_shared_patches = Vec::new();
 
@@ -189,7 +174,6 @@ impl PatchEngine {
             }
         }
 
-        // Combine all applied patches
         let mut all_applied_patches = applied_arch_patches.clone();
         all_applied_patches.extend(applied_shared_patches.clone());
 
@@ -227,7 +211,6 @@ impl PatchEngine {
             println!("========================================\n");
         }
 
-        // Only return error if NO patches were applied
         if all_applied_patches.is_empty()
             && (!failed_arch_patches.is_empty() || !failed_shared_patches.is_empty())
         {
@@ -241,13 +224,11 @@ impl PatchEngine {
         }
     }
 
-    /// Apply a single patch file
     fn apply_patch(&self, patch_file: &Path, patch_name: &str) -> Result<(), PatchError> {
         if self.verbose {
             println!("Applying patch: {}", patch_name);
         }
 
-        // DEBUG: Log patch application attempt
         println!("🔧 DEBUG: Attempting to apply patch: {}", patch_name);
         println!("🔧 DEBUG: Patch file path: {}", patch_file.display());
         println!(
@@ -258,7 +239,6 @@ impl PatchEngine {
                 .unwrap_or_default()
         );
 
-        // Check if patch is already applied
         if self.is_patch_already_applied(patch_file)? {
             if self.verbose {
                 println!("  ✅ Patch {} already applied", patch_name);
@@ -267,18 +247,15 @@ impl PatchEngine {
             return Ok(());
         }
 
-        // Apply the patch using standard patch command with -p1 (normalized format)
         let output = Command::new("patch")
-            .arg("-p1") // Strip first directory component (a/ and b/ prefixes)
-            .arg("-N") // Ignore patches that seem to be reversed
+            .arg("-p1")
             .arg("--forward")
             .arg("--ignore-whitespace")
-            .arg("-s") // Silent mode - don't ask questions
-            .arg("-f") // Force apply, don't ask questions
-            .arg("--verbose") // Show what's being patched
+            .arg("-s")
+            .arg("--verbose")
             .arg("-i")
             .arg(patch_file)
-            .current_dir(".") // Run from project root
+            .current_dir(".")
             .output()
             .map_err(|e| {
                 PatchError::ApplicationFailed(format!("Failed to run patch command: {}", e))
@@ -308,7 +285,6 @@ impl PatchEngine {
         }
 
         if !output.status.success() {
-            // Check if it's just "already applied" message or if hunks failed because patch is already applied
             if stderr.contains("already applied")
                 || stderr.contains("previously applied")
                 || stdout.contains("already applied")
@@ -341,7 +317,6 @@ impl PatchEngine {
         Ok(())
     }
 
-    /// Check if a patch is already applied using patch --dry-run
     fn is_patch_already_applied(&self, patch_file: &Path) -> Result<bool, PatchError> {
         let output = Command::new("patch")
             .arg("-p1")
@@ -370,7 +345,6 @@ impl PatchEngine {
         Ok(already_applied)
     }
 
-    /// Validate that all patches for an architecture are applied
     #[allow(dead_code)]
     pub fn validate_patches_for_arch(&self, arch: &str) -> Result<(), PatchError> {
         let (arch_patches, shared_patches) = self.discover_all_patches(arch)?;
@@ -384,7 +358,6 @@ impl PatchEngine {
             );
         }
 
-        // Validate architecture-specific patches
         for patch_file in arch_patches {
             let patch_path = self.patches_dir.join(arch).join(&patch_file);
 
@@ -403,7 +376,6 @@ impl PatchEngine {
             }
         }
 
-        // Validate shared patches
         for patch_file in shared_patches {
             let patch_path = self.patches_dir.join("shared").join(&patch_file);
 
@@ -428,86 +400,11 @@ impl PatchEngine {
 
         Ok(())
     }
-
-    /// Get list of available architectures
-    #[allow(dead_code)]
-    pub fn get_available_architectures(&self) -> Result<Vec<String>, PatchError> {
-        let mut architectures = Vec::new();
-
-        let entries = fs::read_dir(&self.patches_dir).map_err(|e| {
-            PatchError::DiscoveryError(format!("Failed to read patches directory: {}", e))
-        })?;
-
-        for entry in entries {
-            let entry = entry.map_err(|e| {
-                PatchError::DiscoveryError(format!("Failed to read directory entry: {}", e))
-            })?;
-            let path = entry.path();
-
-            if path.is_dir() && path.file_name().and_then(|n| n.to_str()) != Some("shared") {
-                if let Some(arch_name) = path.file_name().and_then(|n| n.to_str()) {
-                    architectures.push(arch_name.to_string());
-                }
-            }
-        }
-
-        Ok(architectures)
-    }
-
-    /// Get patch list for an architecture
-    #[allow(dead_code)]
-    pub fn get_patches_for_arch(&self, arch: &str) -> Result<Vec<String>, PatchError> {
-        let (arch_patches, _) = self.discover_all_patches(arch)?;
-        Ok(arch_patches)
-    }
 }
 
-/// Get Android architecture from target triple
-pub fn get_android_arch_from_target(target: &str) -> Option<&'static str> {
+pub fn get_android_arch_from_target(target: &str) -> (&'static str, &'static str) {
     match target {
-        "aarch64-linux-android" => Some("arm64"),
-        "x86_64-linux-android" => Some("x86_64"),
-        "armv7-linux-androideabi" => Some("arm32"),
-        "i686-linux-android" => Some("x86"),
-        _ => None,
-    }
-}
-
-/// Check if current build is for Android
-pub fn is_android_build() -> bool {
-    std::env::var("TARGET")
-        .unwrap_or_default()
-        .contains("android")
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_architecture_detection() {
-        assert_eq!(
-            get_android_arch_from_target("aarch64-linux-android"),
-            Some("arm64")
-        );
-        assert_eq!(
-            get_android_arch_from_target("x86_64-linux-android"),
-            Some("x86_64")
-        );
-        assert_eq!(
-            get_android_arch_from_target("armv7-linux-androideabi"),
-            Some("arm32")
-        );
-        assert_eq!(
-            get_android_arch_from_target("i686-linux-android"),
-            Some("x86")
-        );
-        assert_eq!(get_android_arch_from_target("unknown"), None);
-    }
-
-    #[test]
-    fn test_patch_engine_creation() {
-        let engine = PatchEngine::new(false);
-        assert!(engine.is_ok());
+        "aarch64-linux-android" => ("arm64", "aarch64"),
+        _ => panic!("Unsupported Android target: {}", target),
     }
 }
