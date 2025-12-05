@@ -1,4 +1,0 @@
-[alias]
-test-unit = "test --lib"
-test-integration = "test --test mod"
-test-doc = "test --doc"
