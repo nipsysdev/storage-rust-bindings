@@ -1,14 +1,11 @@
---- a/vendor/nim-taskpools/taskpools/taskpools.nim
-+++ b/vendor/nim-taskpools/taskpools/taskpools.nim
-@@ -51,6 +51,12 @@
-   ./tasks
+--- a/vendor/nim-codex/vendor/nim-taskpools/taskpools/primitives/barriers_posix.nim
++++ b/vendor/nim-codex/vendor/nim-taskpools/taskpools/primitives/barriers_posix.nim
+@@ -13,7 +13,7 @@
+ # Types
+ # -------------------------------------------------------
  
-+# Android-specific fix for cpuRelax function
-+when defined(android) and (defined(arm64) or defined(arm)):
-+  proc cpuRelax* {.inline.} =
-+    # Use a simple memory barrier instead of the x86 pause instruction
-+    {.emit: """asm volatile("" ::: "memory");""".}
-+
- export
-   # flowvars
-   Flowvar, isSpawned, isReady, sync, tasks
+-when defined(osx):
++when defined(osx) or defined(android):
+   import ./barriers_macos
+   export PthreadBarrierAttr, PthreadBarrier, Errno, PTHREAD_BARRIER_SERIAL_THREAD
+ else:

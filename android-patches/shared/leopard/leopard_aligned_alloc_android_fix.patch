@@ -1,0 +1,16 @@
+--- a/vendor/nim-codex/vendor/nim-leopard/leopard/utils/allocs.nim
++++ b/vendor/nim-codex/vendor/nim-leopard/leopard/utils/allocs.nim
+@@ -34,7 +34,7 @@
+ 
+   proc alignedFree*[T](p: ptr T)
+     {.importc: "_aligned_free", header: "<malloc.h>".}
+-elif defined(osx):
++elif defined(osx) or defined(android):
+   proc posix_memalign(mem: var pointer, alignment, size: csize_t)
+     {.importc, header:"<stdlib.h>".}
+ 
+   proc alignedAlloc(alignment, size: csize_t): pointer {.inline.} =
+     posix_memalign(result, alignment, size)
+ 
+   proc alignedFree*[T](p: ptr T) {.inline.} =
+     c_free(p)

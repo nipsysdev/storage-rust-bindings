@@ -1,10 +1,29 @@
---- /vendor/nim-codex/utils.nim
-+++ /vendor/nim-codex/utils.nim
-@@ -198,7 +198,7 @@ proc stripSpaces*(s: string): string =
-     result &= i
-
+--- a/vendor/nim-codex/vendor/nimcrypto/nimcrypto/utils.nim
++++ b/vendor/nim-codex/vendor/nimcrypto/nimcrypto/utils.nim
+@@ -195,7 +195,7 @@
+     if i in allowed:
+       result &= i
+ 
 -when defined(linux):
 +when defined(linux) and not defined(android):
    proc c_explicit_bzero(
      s: pointer, n: csize_t
    ) {.importc: "explicit_bzero", header: "string.h".}
+@@ -203,6 +203,17 @@
+   proc burnMem*(p: pointer, size: Natural) =
+     c_explicit_bzero(p, csize_t size)
+ 
++elif defined(android):
++  proc burnMem*(p: pointer, size: Natural) =
++    var sp {.volatile.} = cast[ptr byte](p)
++    var c = size
++    if not isNil(sp):
++      zeroMem(p, size)
++      while c > 0:
++        sp[] = 0
++        sp = cast[ptr byte](cast[uint](sp) + 1)
++        dec(c)
++
+ elif defined(windows):
+   proc cSecureZeroMemory(
+     s: pointer, n: csize_t
