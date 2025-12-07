@@ -75,6 +75,16 @@ cargo build --features dynamic-linking
 cargo build --features static-linking
 ```
 
+## Android Builds
+
+To build for Android targets, you need to set the Android SDK and NDK environment variables:
+
+```bash
+export ANDROID_SDK_ROOT=/path/to/your/Android/Sdk
+export ANDROID_NDK_HOME=/path/to/your/Android/Sdk/ndk/26.2.11394342
+cargo build --target aarch64-linux-android
+```
+
 ### In your Cargo.toml
 
 ```toml
