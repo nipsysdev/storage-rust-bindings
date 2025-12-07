@@ -61,7 +61,7 @@ impl CallbackContext {
         }
     }
 
-    pub unsafe fn handle_callback(&self, ret: i32, msg: *const c_char, len: size_t) {
+    pub unsafe fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
                 let message = unsafe {
@@ -194,12 +194,7 @@ where
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn c_callback(
-    ret: c_int,
-    msg: *const c_char,
-    len: size_t,
-    resp: *mut c_void,
-) {
+pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, resp: *mut c_void) {
     if resp.is_null() {
         return;
     }
@@ -247,7 +242,7 @@ mod tests {
     fn test_callback_context_success() {
         let context = CallbackContext::new();
         unsafe {
-            context.handle_callback(0, std::ptr::null(), 0);
+            context.handle_callback(0, std::ptr::null_mut(), 0);
         }
         let result = context.get_result().unwrap();
         assert!(result.is_ok());
@@ -258,7 +253,7 @@ mod tests {
     fn test_callback_context_error() {
         let context = CallbackContext::new();
         unsafe {
-            context.handle_callback(1, std::ptr::null(), 0);
+            context.handle_callback(1, std::ptr::null_mut(), 0);
         }
         let result = context.get_result().unwrap();
         assert!(result.is_err());
@@ -289,7 +284,7 @@ mod tests {
 
         let test_data = b"test data";
         unsafe {
-            context.handle_callback(3, test_data.as_ptr() as *const c_char, test_data.len());
+            context.handle_callback(3, test_data.as_ptr() as *mut c_char, test_data.len());
         }
 
         assert!(progress_called.load(Ordering::SeqCst));
@@ -327,7 +322,7 @@ mod tests {
     async fn test_callback_future_success() {
         let future = CallbackFuture::new();
         unsafe {
-            future.context.handle_callback(0, std::ptr::null(), 0);
+            future.context.handle_callback(0, std::ptr::null_mut(), 0);
         }
         let result = future.await;
         assert!(result.is_ok());
@@ -338,7 +333,7 @@ mod tests {
     async fn test_callback_future_error() {
         let future = CallbackFuture::new();
         unsafe {
-            future.context.handle_callback(1, std::ptr::null(), 0);
+            future.context.handle_callback(1, std::ptr::null_mut(), 0);
         }
         let result = future.await;
         assert!(result.is_err());
@@ -348,7 +343,7 @@ mod tests {
     fn test_callback_wait_success() {
         let context = CallbackContext::new();
         unsafe {
-            context.handle_callback(0, std::ptr::null(), 0);
+            context.handle_callback(0, std::ptr::null_mut(), 0);
         }
         let result = context.wait();
         assert!(result.is_ok());
@@ -357,7 +352,7 @@ mod tests {
     #[test]
     fn test_c_callback_null_context() {
         unsafe {
-            c_callback(0, std::ptr::null(), 0, std::ptr::null_mut());
+            c_callback(0, std::ptr::null_mut(), 0, std::ptr::null_mut());
         }
     }
 
@@ -368,7 +363,7 @@ mod tests {
         let context_ptr = context_id as *mut c_void;
 
         unsafe {
-            c_callback(0, std::ptr::null(), 0, context_ptr);
+            c_callback(0, std::ptr::null_mut(), 0, context_ptr);
         }
 
         let result = future.context.get_result();
