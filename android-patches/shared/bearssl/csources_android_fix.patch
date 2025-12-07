@@ -1,0 +1,23 @@
+--- a/vendor/nim-codex/vendor/nim-bearssl/bearssl/abi/csources.nim
++++ b/vendor/nim-codex/vendor/nim-bearssl/bearssl/abi/csources.nim
+@@ -40,6 +40,20 @@ const
+ {.passc: "-I" & quoteShell(bearIncPath)}
+ {.passc: "-I" & quoteShell(bearToolsPath)}
+ 
++# Android cross-compilation support
++when defined(android):
++  when defined(arm64):
++    {.passc: "-fPIC".}
++    {.passc: "-DANDROID".}
++    {.passc: "-D__ANDROID_API__=21".}
++    {.passc: "--target=aarch64-linux-android21".}
++    # Ensure we use the correct compiler and linker for Android
++    when defined(CC_aarch64_linux_android):
++      {.passc: "-cc=" & getEnv("CC_aarch64-linux-android").}
++      {.passl: "-ld=" & getEnv("CC_aarch64-linux-android").}
++    when defined(CXX_aarch64_linux_android):
++      {.passc: "-cxx=" & getEnv("CXX_aarch64-linux-android").}
++      {.passl: "-ld=" & getEnv("CXX_aarch64-linux-android").}
+ 
+ when defined(windows):
+   {.passc: "-DBR_USE_WIN32_TIME=1".}

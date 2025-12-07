@@ -1,6 +1,6 @@
---- a/vendor/nim-codex/vendor/nimbus-build-system/makefiles/targets.mk	2025-12-04 21:33:16.648132673 -0500
-+++ b/vendor/nim-codex/vendor/nimbus-build-system/makefiles/targets.mk	2025-12-04 21:35:16.029500904 -0500
-@@ -78,7 +78,13 @@
+--- a/vendor/nim-codex/vendor/nimbus-build-system/makefiles/targets.mk
++++ b/vendor/nim-codex/vendor/nimbus-build-system/makefiles/targets.mk
+@@ -78,7 +78,13 @@ endif
  #- macOS is also a special case, with its "ln" not supporting "-r"
  #- the AppVeyor 32-bit build is done on a 64-bit image, so we need to override the architecture detection with ARCH_OVERRIDE
  build-nim: | sanity-checks
@@ -15,7 +15,7 @@
  		NIM_BUILD_MSG="$(BUILD_MSG) Nim compiler" \
  		V=$(V) \
  		CC=$(CC) \
-@@ -104,12 +110,16 @@
+@@ -104,12 +110,16 @@ update-test:
  #- allows parallel building with the '+' prefix
  #- rebuilds the Nim compiler if the corresponding submodule is updated
  update-common: | sanity-checks update-test
@@ -38,3 +38,16 @@
  	find . -type d -name nimcache -print0 | xargs -0 rm -rf
  	$(GET_CURRENT_COMMIT_TIMESTAMP) > $(UPDATE_TIMESTAMP)
  	rm -rf $(NIMBLE_DIR)
+@@ -141,7 +151,11 @@ libnatpmp.a: | sanity-checks
+ ifeq ($(OS), Windows_NT)
+ 	+ "$(MAKE)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream OS=mingw CC=$(CC) CFLAGS="-Wall -Wno-cpp -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" $@ $(HANDLE_OUTPUT)
+ else
+-	+ "$(MAKE)" CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(CC) $@ $(HANDLE_OUTPUT)
++	@if [ "$(ANDROID_NDK_HOME)" != "" ] && [ "$(TARGET_ARCH)" = "arm64" ]; then \
++		"$(MAKE)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang TARGET_ARCH=arm64 ANDROID_NDK_HOME=$(ANDROID_NDK_HOME) CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" $@ $(HANDLE_OUTPUT); \
++	else \
++		"$(MAKE)" CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(CC) $@ $(HANDLE_OUTPUT); \
++	fi
+ endif
+ 
+ #- depends on Git submodules being initialised

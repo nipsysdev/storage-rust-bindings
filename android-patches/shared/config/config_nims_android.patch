@@ -1,9 +1,29 @@
 --- a/vendor/nim-codex/config.nims
 +++ b/vendor/nim-codex/config.nims
-@@ -68,6 +68,42 @@
-   else: switch("passC", "-march=native")
-     
+@@ -47,6 +47,14 @@ when defined(windows):
+   # because these require direct manipulations of the stdout File object.
+   switch("define", "chronicles_colors=NoColors")
  
++# Android-specific compiler flags
++when defined(arm64):
++  switch("passC", "-march=armv8-a")
++  # Set environment variable for BearSSL Android build
++  putEnv("ANDROID_ARM64_BUILD", "1")
++  putEnv("ANDROID", "1")
++
++
+ # This helps especially for 32-bit x86, which sans SSE2 and newer instructions
+ # requires quite roundabout code generation for cryptography, and other 64-bit
+ # and larger arithmetic use cases, along with register starvation issues. When
+@@ -65,8 +73,50 @@ else:
+     # https://gcc.gnu.org/bugzilla/show_bug.cgi?id=65782
+     # ("-fno-asynchronous-unwind-tables" breaks Nim's exception raising, sometimes)
+     switch("passC", "-march=x86-64")
+-  else: switch("passC", "-march=native")
++  else:
++    when not defined(android):
++      switch("passC", "-march=native")
+     
 +# Android-specific configurations
 +when defined(android):
 +  # Disable x86 intrinsics for Android ARM builds
@@ -26,12 +46,17 @@
 +  # Android-specific compiler flags
 +  when defined(arm64):
 +    switch("passC", "-march=armv8-a")
++    # Set environment variable for BearSSL Android build
++    putEnv("ANDROID_ARM64_BUILD", "1")
 +  elif defined(arm):
 +    switch("passC", "-march=armv7-a")
 +  elif defined(amd64):
 +    switch("passC", "-march=x86-64")
 +  elif defined(i386):
 +    switch("passC", "-march=i686")
++
++  # Set Android environment variable for BearSSL
++  putEnv("ANDROID", "1")
 +  
 +  # Disable libbacktrace on Android
 +  switch("define", "disable_libbacktrace")
@@ -39,7 +64,6 @@
 +  # Android-specific defines
 +  switch("define", "android")
 +  switch("define", "debug")
-+
+ 
  --tlsEmulation:
    off
- --threads:

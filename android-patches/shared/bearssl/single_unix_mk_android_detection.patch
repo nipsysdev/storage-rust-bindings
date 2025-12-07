@@ -1,0 +1,16 @@
+--- a/vendor/nim-codex/vendor/nim-bearssl/bearssl/csources/mk/SingleUnix.mk
++++ b/vendor/nim-codex/vendor/nim-bearssl/bearssl/csources/mk/SingleUnix.mk
+@@ -34,5 +34,13 @@ P = /
+ # Default configuration is 'Unix' (native build on a Unix-like system).
+ CONF = Unix
+ 
++# Detect Android build environment and use Android configuration
++ifdef ANDROID
++  CONF = Android
++endif
++ifdef ANDROID_ARM64_BUILD
++  CONF = Android
++endif
++
+ include conf/$(CONF).mk
+ include mk/Rules.mk
