@@ -38,7 +38,7 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
                 codex_connect(
                     ctx as *mut _,
                     c_peer_id,
-                    c_addresses.as_ptr() as *mut *mut c_char,
+                    c_addresses.as_ptr() as *mut *const c_char,
                     c_addresses.len(),
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,

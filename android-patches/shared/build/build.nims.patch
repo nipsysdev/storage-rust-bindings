@@ -4,7 +4,7 @@
  proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
    if not dirExists "build":
      mkDir "build"
-+  
++
 +  var extra_params = params
 +
 +  # Android-specific compiler flags
@@ -21,7 +21,7 @@
 +    let android_builtins = android_clang_lib & "/libclang_rt.builtins-aarch64-android.a"
 +    let android_crtbegin = android_lib_path21 & "/crtbegin_so.o"
 +    let android_crtend = android_lib_path21 & "/crtend_so.o"
-+    
++
 +    extra_params &= " --cpu:arm64 --os:android --cc:clang --clang.execlang=" & android_cc
 +    extra_params &= " --passl:-fuse-ld=" & android_linker
 +    extra_params &= " --passl:-L" & android_omp_lib
@@ -53,7 +53,7 @@
 +        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
 +      if existsEnv("NO_X86_INTRINSICS"):
 +        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
-+    
++
      exec "nim c" & " --out:build/" & lib_name &
        " --threads:on --app:lib --opt:size --noMain --mm:refc --header --d:metrics " &
        "--nimMainPrefix:libcodex -d:noSignalHandler " &
@@ -68,7 +68,7 @@
 +        leopard_cmake_flags &= " -DANDROID_ARM64_BUILD=1"
 +      if existsEnv("NO_X86_INTRINSICS"):
 +        leopard_cmake_flags &= " -DNO_X86_INTRINSICS=1"
-+    
++
      exec "nim c" & " --out:build/" & name &
        ".a --threads:on --app:staticlib --opt:size --noMain --mm:refc --header --d:metrics " &
        "--nimMainPrefix:libcodex -d:noSignalHandler " &
