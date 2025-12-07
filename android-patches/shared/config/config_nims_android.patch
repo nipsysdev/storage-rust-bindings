@@ -33,16 +33,16 @@
 +  switch("define", "noX86Intrinsics")
 +  switch("define", "noSimd")
 +  switch("define", "noInlineAsm")
-+  
++
 +  # Set Android cross-compiler
 +  let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
 +  let android_ar = getEnv("CODEX_ANDROID_AR", "llvm-ar")
-+  
++
 +  switch("cc", "clang")
 +  switch("clang.exe", android_cc)
 +  switch("clang.linker", android_cc)
 +  switch("clang.ar", android_ar)
-+  
++
 +  # Android-specific compiler flags
 +  when defined(arm64):
 +    switch("passC", "-march=armv8-a")
@@ -57,10 +57,10 @@
 +
 +  # Set Android environment variable for BearSSL
 +  putEnv("ANDROID", "1")
-+  
++
 +  # Disable libbacktrace on Android
 +  switch("define", "disable_libbacktrace")
-+  
++
 +  # Android-specific defines
 +  switch("define", "android")
 +  switch("define", "debug")

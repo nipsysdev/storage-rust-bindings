@@ -43,8 +43,9 @@
 +#define SIGUNUSED SIGSYS
 +
 +// Android doesn't have all sysctl functionality
-+static inline int android_sysctl(const int *name, unsigned int namelen, 
-+                                void *oldp, size_t *oldlenp, 
++static inline int android_sysctl(const int *name, unsigned int namelen,
++                                void *oldp, size_t *oldlenp,
++                                void *oldp, size_t *oldlenp,
 +                                const void *newp, size_t newlen) {
 +    errno = ENOSYS;
 +    return -1;

@@ -15,13 +15,13 @@
  		NIM_BUILD_MSG="$(BUILD_MSG) Nim compiler" \
  		V=$(V) \
  		CC=$(CC) \
-@@ -104,12 +110,16 @@ update-test:
+@@ -104,12 +110,17 @@ update-test:
  #- allows parallel building with the '+' prefix
  #- rebuilds the Nim compiler if the corresponding submodule is updated
  update-common: | sanity-checks update-test
 -	git submodule foreach --quiet 'git ls-files --exclude-standard --recurse-submodules -z -- ":!:.*" | xargs -0 rm -rf'
 -	git $(GIT_SUBMODULE_CONFIG) submodule update --init --recursive || true
--    # changing URLs in a submodule's submodule means we have to sync and update twice
+     # changing URLs in a submodule's submodule means we have to sync and update twice
 -	git submodule sync --quiet --recursive
 -	git $(GIT_SUBMODULE_CONFIG) submodule update --init --recursive
 -	git submodule foreach --quiet --recursive 'git $(GIT_SUBMODULE_CONFIG) reset --quiet --hard'
@@ -38,16 +38,16 @@
  	find . -type d -name nimcache -print0 | xargs -0 rm -rf
  	$(GET_CURRENT_COMMIT_TIMESTAMP) > $(UPDATE_TIMESTAMP)
  	rm -rf $(NIMBLE_DIR)
-@@ -141,7 +151,11 @@ libnatpmp.a: | sanity-checks
- ifeq ($(OS), Windows_NT)
- 	+ "$(MAKE)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream OS=mingw CC=$(CC) CFLAGS="-Wall -Wno-cpp -Os -fPIC -DWIN32 -DNATPMP_STATICLIB -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" $@ $(HANDLE_OUTPUT)
+@@ -134,7 +145,11 @@ ifeq ($(OS), Windows_NT)
+ 	+ [ -e vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/$@ ] || \
+ 		PATH=".;$${PATH}" "$(MAKE)" -C vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc -f Makefile.mingw CC=$(CC) CFLAGS="-Os -fPIC" $@ $(HANDLE_OUTPUT)
  else
--	+ "$(MAKE)" CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(CC) $@ $(HANDLE_OUTPUT)
+-	+ "$(MAKE)" -C vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc CC=$(CC) CFLAGS="-Os -fPIC" build/$@ $(HANDLE_OUTPUT)
 +	@if [ "$(ANDROID_NDK_HOME)" != "" ] && [ "$(TARGET_ARCH)" = "arm64" ]; then \
-+		"$(MAKE)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang TARGET_ARCH=arm64 ANDROID_NDK_HOME=$(ANDROID_NDK_HOME) CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" $@ $(HANDLE_OUTPUT); \
++		"$(MAKE)" -C vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc CC=$(ANDROID_NDK_HOME)/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android21-clang CFLAGS="-Os -fPIC -DANDROID" build/$@ $(HANDLE_OUTPUT); \
 +	else \
-+		"$(MAKE)" CFLAGS="-Wall -Wno-cpp -Os -fPIC -DENABLE_STRNATPMPERR -DNATPMP_MAX_RETRIES=4 $(CFLAGS)" -C vendor/nim-nat-traversal/vendor/libnatpmp-upstream CC=$(CC) $@ $(HANDLE_OUTPUT); \
++		"$(MAKE)" -C vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc CC=$(CC) CFLAGS="-Os -fPIC" build/$@ $(HANDLE_OUTPUT); \
 +	fi
  endif
  
- #- depends on Git submodules being initialised
+ libnatpmp.a: | sanity-checks

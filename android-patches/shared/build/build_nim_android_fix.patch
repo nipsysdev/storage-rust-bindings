@@ -12,7 +12,7 @@
 -			if ! git remote | grep -q "^upstream$"; then
 -				git remote add upstream https://github.com/nim-lang/Nim
 +		if [[ -z "${CODEX_SKIP_GIT_RESET}" ]]; then
-+  			git restore . 2>/dev/null || git reset --hard
++			git restore . 2>/dev/null || git reset --hard
 +			if ! git checkout -q "${NIM_COMMIT}" 2>/dev/null; then
 +				# Pay the price for a non-default NIM_COMMIT here, by fetching everything.
 +				# The "upstream" remote (pointing at the same location as the "origin")

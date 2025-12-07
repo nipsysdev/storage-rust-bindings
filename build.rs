@@ -70,7 +70,7 @@ fn setup_android_cross_compilation(target: String) {
 
     let android_sdk = env::var("ANDROID_SDK_ROOT").expect("ANDROID_SDK_ROOT hasn't been set");
 
-    let android_ndk = env::var("ANDROID_NDK_HOME").expect("ANDROID_SDK_ROOT hasn't been set");
+    let android_ndk = env::var("ANDROID_NDK_HOME").expect("ANDROID_NDK_HOME hasn't been set");
 
     if !std::path::Path::new(&android_sdk).exists() {
         panic!("Android SDK not found at {}.", android_sdk);
@@ -78,6 +78,10 @@ fn setup_android_cross_compilation(target: String) {
     if !std::path::Path::new(&android_ndk).exists() {
         panic!("Android NDK not found at {}.", android_ndk);
     }
+
+    // Clean architecture-specific build artifacts to prevent cross-architecture contamination
+    println!("cargo:warning=Cleaning architecture-specific build artifacts for Android...");
+    clean_android_build_artifacts();
 
     let target_clone = target.clone();
 
@@ -167,6 +171,7 @@ fn setup_android_cross_compilation(target: String) {
         match target_clone.as_str() {
             "aarch64-linux-android" => {
                 env::set_var("ANDROID_ARM64_BUILD", "1");
+                env::set_var("TARGET_ARCH", "arm64");
             }
             _ => panic!("Unsupported Android target: {}", target_clone),
         }
@@ -190,6 +195,27 @@ fn setup_android_cross_compilation(target: String) {
         env::set_var("CODEX_SKIP_GIT_RESET", "1");
         env::set_var("CODEX_SKIP_SUBMODULE_RESET", "1");
         env::set_var("CODEX_SKIP_SUBMODULE_UPDATE", "1");
+    }
+
+    // Set Rust/Cargo cross-compilation environment variables for circom-compat-ffi
+    unsafe {
+        env::set_var("CARGO_BUILD_TARGET", &target_clone);
+        env::set_var("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", &cc);
+
+        // Ensure the cc crate can find the Android compiler
+        env::set_var("CC_aarch64_linux_android", &cc);
+        env::set_var("CXX_aarch64_linux_android", &cxx);
+        env::set_var("AR_aarch64_linux_android", &ar);
+        env::set_var("RANLIB_aarch64_linux_android", &ranlib);
+
+        // Set generic CC/AR for Rust's build scripts that don't use target-specific vars
+        env::set_var("CC", &cc);
+        env::set_var("CXX", &cxx);
+        env::set_var("AR", &ar);
+        env::set_var("RANLIB", &ranlib);
+
+        // Force Cargo to use the Android linker
+        env::set_var("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", &cc);
     }
 
     println!("cargo:rustc-link-lib=dylib=android");
@@ -223,9 +249,6 @@ fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-link-search=native={}", openmp_lib_path);
     println!("cargo:rustc-link-lib=static=omp");
 
-    // Set the linker for the specific target
-    println!("cargo:rustc-linker={}", cc);
-
     // Also set target-specific linker environment variables
     println!("cargo:rustc-env=CC={}", cc);
     println!("cargo:rustc-env=CXX={}", cxx);
@@ -239,7 +262,11 @@ fn setup_android_cross_compilation(target: String) {
     // Force Rust to use the Android NDK linker directly
     // Set the linker path in the environment so clang can find it
     let android_ld_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
-    println!("cargo:rustc-env=PATH={}:$PATH", android_ld_path);
+
+    // Get the current system PATH and append Android NDK path to preserve system tools like bash
+    let current_path = env::var("PATH").unwrap_or_default();
+    let new_path = format!("{}:{}", current_path, android_ld_path);
+    println!("cargo:rustc-env=PATH={}", new_path);
     // Let Android NDK clang use its default linker
     // println!("cargo:rustc-link-arg=-fuse-ld=lld");
 
@@ -263,6 +290,70 @@ fn setup_android_cross_compilation(target: String) {
         "Android cross-compilation setup complete for {}",
         target_clone
     );
+}
+
+fn clean_android_build_artifacts() {
+    let nim_codex_dir = PathBuf::from("vendor/nim-codex");
+
+    // Clean problematic pre-built libraries that cause architecture conflicts
+    let artifacts_to_clean = [
+        "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build",
+        "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a",
+        "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/*.o",
+        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target",
+        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/aarch64-linux-android",
+        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release",
+        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/debug",
+        "nimcache",
+    ];
+
+    for artifact in &artifacts_to_clean {
+        if artifact.contains("*.o") {
+            // Handle glob patterns for .o files
+            let dir_path = nim_codex_dir.join(artifact.replace("/*.o", ""));
+            if dir_path.exists() && dir_path.is_dir() {
+                println!(
+                    "cargo:warning=Cleaning .o files in directory: {}",
+                    artifact.replace("/*.o", "")
+                );
+                if let Ok(entries) = std::fs::read_dir(&dir_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() && path.extension().map_or(false, |ext| ext == "o") {
+                            let _ = std::fs::remove_file(&path);
+                        }
+                    }
+                }
+            }
+        } else {
+            let path = nim_codex_dir.join(artifact);
+            if path.exists() {
+                println!(
+                    "cargo:warning=Removing Android build artifact: {}",
+                    artifact
+                );
+                if path.is_dir() {
+                    let _ = std::fs::remove_dir_all(&path);
+                } else {
+                    let _ = std::fs::remove_file(&path);
+                }
+            }
+        }
+    }
+
+    // Also clean any Cargo build artifacts that might be architecture-specific
+    let cargo_target_dirs =
+        [nim_codex_dir.join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target")];
+
+    for target_dir in &cargo_target_dirs {
+        if target_dir.exists() {
+            println!(
+                "cargo:warning=Cleaning Cargo target directory: {}",
+                target_dir.display()
+            );
+            let _ = std::fs::remove_dir_all(&target_dir);
+        }
+    }
 }
 
 fn get_nim_codex_dir() -> PathBuf {
@@ -428,13 +519,14 @@ fn build_libcodex_dynamic(nim_codex_dir: &PathBuf) {
         match target.as_str() {
             "aarch64-linux-android" => {
                 make_cmd.env("ANDROID_ARM64_BUILD", "1");
+                make_cmd.env("TARGET_ARCH", "arm64");
             }
             _ => {}
         }
 
         let android_ndk = env::var("ANDROID_NDK_ROOT")
             .or_else(|_| env::var("ANDROID_NDK_HOME"))
-            .unwrap_or_else(|_| String::from("/home/lowkey/Android/Sdk/ndk/26.2.11394342"));
+            .expect("ANDROID_NDK_ROOT or ANDROID_NDK_HOME must be set for Android builds");
         let sysroot = format!(
             "{}/toolchains/llvm/prebuilt/linux-x86_64/sysroot",
             android_ndk
@@ -556,6 +648,16 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
         ))
     } else {
         nim_codex_dir.join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release")
+    };
+
+    // Check if the Android-specific directory exists, fallback to regular directory
+    let circom_dir = if is_android && !circom_dir.exists() {
+        println!(
+            "cargo:warning=Android-specific circom directory not found, falling back to default"
+        );
+        nim_codex_dir.join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release")
+    } else {
+        circom_dir
     };
 
     println!("cargo:rustc-link-search=native={}", circom_dir.display());
