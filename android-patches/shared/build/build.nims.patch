@@ -1,6 +1,6 @@
---- a/vendor/nim-codex/build.nims	2025-12-03 06:29:39.647231359 -0500
-+++ b/vendor/nim-codex/build.nims	2025-12-03 06:32:43.595067972 -0500
-@@ -28,6 +28,13 @@
+--- a/vendor/nim-codex/build.nims
++++ b/vendor/nim-codex/build.nims
+@@ -28,6 +28,41 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
  proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
    if not dirExists "build":
      mkDir "build"
@@ -10,11 +10,39 @@
 +  # Android-specific compiler flags
 +  when defined(android):
 +    let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
++    let android_ndk = getEnv("ANDROID_NDK_HOME")
++    let android_linker = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/bin/ld.lld"
++    let android_omp_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux/aarch64"
++    let android_sysroot = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
++    let android_lib_path = android_sysroot & "/usr/lib/aarch64-linux-android"
++    let android_lib_path21 = android_lib_path & "/21"
++    let android_lib_path31 = android_lib_path & "/31"
++    let android_clang_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux"
++    let android_builtins = android_clang_lib & "/libclang_rt.builtins-aarch64-android.a"
++    let android_crtbegin = android_lib_path21 & "/crtbegin_so.o"
++    let android_crtend = android_lib_path21 & "/crtend_so.o"
++    
 +    extra_params &= " --cpu:arm64 --os:android --cc:clang --clang.execlang=" & android_cc
++    extra_params &= " --passl:-fuse-ld=" & android_linker
++    extra_params &= " --passl:-L" & android_omp_lib
++    extra_params &= " --passl:-L" & android_clang_lib
++    extra_params &= " --passl:-L" & android_lib_path
++    extra_params &= " --passl:-L" & android_lib_path21
++    extra_params &= " --passl:-L" & android_lib_path31
++    extra_params &= " --passl:-nostdlib"
++    extra_params &= " --passl:" & android_crtbegin
++    extra_params &= " --passl:" & android_crtend
++    extra_params &= " --passl:" & android_builtins
++    extra_params &= " --passl:-lc"
++    extra_params &= " --passl:-lm"
++    extra_params &= " --passl:-ldl"
++    extra_params &= " --passl:-Wl,--allow-multiple-definition"
++    extra_params &= " --passl:-Wl,--undefined-version"
++    extra_params &= " --passl:--target=aarch64-linux-android21"
  
    if `type` == "dynamic":
      let lib_name = (
-@@ -35,19 +42,35 @@
+@@ -35,19 +70,35 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic")
        elif defined(macosx): name & ".dylib"
        else: name & ".so"
      )
@@ -53,7 +81,7 @@
  
  proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
    buildBinary name, srcDir, params
-@@ -153,6 +176,11 @@
+@@ -153,6 +204,11 @@ task libcodexDynamic, "Generate bindings":
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
  
@@ -65,7 +93,7 @@
    let name = "libcodex"
    buildLibrary name, "library/", params, "dynamic"
  
-@@ -163,5 +191,10 @@
+@@ -163,5 +219,10 @@ task libcodexStatic, "Generate bindings":
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
  

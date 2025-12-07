@@ -79,24 +79,39 @@ fn setup_android_cross_compilation(target: String) {
         panic!("Android NDK not found at {}.", android_ndk);
     }
 
+    let target_clone = target.clone();
+
     unsafe {
         env::set_var(&format!("CARGO_TARGET_{}", target), "1");
         env::set_var(&format!("CARGO_LINKER_{}", target), "clang");
+
+        env::set_var("CARGO_TARGET_{}_LINKER", target);
     }
 
-    let (arch, _) = get_android_arch_from_target(&target);
+    let (arch, _) = get_android_arch_from_target(&target_clone);
 
     let toolchain_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
-    let cc = format!("{}/{}21-clang", toolchain_path, target);
-    let cxx = format!("{}/{}21-clang++", toolchain_path, target);
+    let cc = format!("{}/{}21-clang", toolchain_path, target_clone);
+    let cxx = format!("{}/{}21-clang++", toolchain_path, target_clone);
     let ar = format!("{}/llvm-ar", toolchain_path);
     let ranlib = format!("{}/llvm-ranlib", toolchain_path);
 
+    println!("cargo:warning=Android CC path: {}", cc);
+    println!(
+        "cargo:warning=Android CC exists: {}",
+        std::path::Path::new(&cc).exists()
+    );
+
     unsafe {
-        env::set_var(format!("CC_{}", target), &cc);
-        env::set_var(format!("CXX_{}", target), &cxx);
-        env::set_var(format!("AR_{}", target), &ar);
-        env::set_var(format!("RANLIB_{}", target), &ranlib);
+        env::set_var(format!("CC_{}", target_clone), &cc);
+        env::set_var(format!("CXX_{}", target_clone), &cxx);
+        env::set_var(format!("AR_{}", target_clone), &ar);
+        env::set_var(format!("RANLIB_{}", target_clone), &ranlib);
+
+        env::set_var("CC_aarch64_linux_android", &cc);
+        env::set_var("CXX_aarch64_linux_android", &cxx);
+        env::set_var("AR_aarch64_linux_android", &ar);
+        env::set_var("RANLIB_aarch64_linux_android", &ranlib);
     }
 
     let sysroot = format!(
@@ -104,22 +119,40 @@ fn setup_android_cross_compilation(target: String) {
         android_ndk
     );
 
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}", sysroot, target);
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}/21", sysroot, target);
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}/31", sysroot, target);
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}",
+        sysroot, target_clone
+    );
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}/21",
+        sysroot, target_clone
+    );
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}/31",
+        sysroot, target_clone
+    );
 
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}", sysroot, target);
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}/21", sysroot, target);
-    println!("cargo:rustc-link-arg=-L{}/usr/lib/{}/31", sysroot, target);
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}",
+        sysroot, target_clone
+    );
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}/21",
+        sysroot, target_clone
+    );
+    println!(
+        "cargo:rustc-link-arg=-L{}/usr/lib/{}/31",
+        sysroot, target_clone
+    );
 
-    let arch_flag = match target.as_str() {
+    let arch_flag = match target_clone.as_str() {
         "aarch64-linux-android" => "-march=armv8-a",
-        _ => panic!("Unsupported Android target: {}", target),
+        _ => panic!("Unsupported Android target: {}", target_clone),
     };
 
-    let arch_define = match target.as_str() {
+    let arch_define = match target_clone.as_str() {
         "aarch64-linux-android" => "-d:arm64",
-        _ => panic!("Unsupported Android target: {}", target),
+        _ => panic!("Unsupported Android target: {}", target_clone),
     };
     let android_defines = format!("{} -d:android -d:debug -d:disable_libbacktrace -d:noIntrinsicsBitOpts -d:NO_X86_INTRINSICS -d:__NO_INLINE_ASM__ -d:noX86 -d:noSSE -d:noAVX -d:noAVX2 -d:noAVX512 -d:noX86Intrinsics -d:noSimd -d:noInlineAsm", arch_define);
 
@@ -131,18 +164,13 @@ fn setup_android_cross_compilation(target: String) {
     }
 
     unsafe {
-        match target.as_str() {
+        match target_clone.as_str() {
             "aarch64-linux-android" => {
                 env::set_var("ANDROID_ARM64_BUILD", "1");
             }
-            _ => panic!("Unsupported Android target: {}", target),
+            _ => panic!("Unsupported Android target: {}", target_clone),
         }
     }
-
-    let out_dir = env::var("OUT_DIR").unwrap();
-
-    let android_fix_obj = format!("{}/android_fix.o", out_dir);
-    println!("cargo:rustc-link-arg={}", android_fix_obj);
 
     unsafe {
         env::set_var("CODEX_ANDROID_STATIC", "1");
@@ -171,22 +199,22 @@ fn setup_android_cross_compilation(target: String) {
 
     println!(
         "cargo:rustc-link-search=native={}/usr/lib/{}",
-        sysroot, target
+        sysroot, target_clone
     );
     println!(
         "cargo:rustc-link-search=native={}/usr/lib/{}/21",
-        sysroot, target
+        sysroot, target_clone
     );
     println!(
         "cargo:rustc-link-search=native={}/usr/lib/{}/31",
-        sysroot, target
+        sysroot, target_clone
     );
     println!(
         "cargo:rustc-link-search=native={}/usr/lib/{}",
-        sysroot, target
+        sysroot, target_clone
     );
 
-    let (_, openmp_arch) = get_android_arch_from_target(&target);
+    let (_, openmp_arch) = get_android_arch_from_target(&target_clone);
 
     let openmp_lib_path = format!(
         "{}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux/{}",
@@ -195,9 +223,46 @@ fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-link-search=native={}", openmp_lib_path);
     println!("cargo:rustc-link-lib=static=omp");
 
+    // Set the linker for the specific target
     println!("cargo:rustc-linker={}", cc);
 
-    println!("Android cross-compilation setup complete for {}", target);
+    // Also set target-specific linker environment variables
+    println!("cargo:rustc-env=CC={}", cc);
+    println!("cargo:rustc-env=CXX={}", cxx);
+    println!("cargo:rustc-env=AR={}", ar);
+    println!("cargo:rustc-env=RANLIB={}", ranlib);
+
+    // Force the use of Android NDK clang for all linking
+    println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
+    println!("cargo:rustc-link-arg=-Wl,--undefined-version");
+
+    // Force Rust to use the Android NDK linker directly
+    // Set the linker path in the environment so clang can find it
+    let android_ld_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
+    println!("cargo:rustc-env=PATH={}:$PATH", android_ld_path);
+    // Let Android NDK clang use its default linker
+    // println!("cargo:rustc-link-arg=-fuse-ld=lld");
+
+    // Set linker environment variables that BearSSL will inherit
+    unsafe {
+        // Force BearSSL to use Android NDK linker
+        let android_linker = format!(
+            "{}/toolchains/llvm/prebuilt/linux-x86_64/bin/ld.lld",
+            android_ndk
+        );
+
+        env::set_var("LD", &android_linker);
+        env::set_var("BEARSSL_LD", &android_linker);
+
+        // Add linker flags to force Android linker usage
+        let linker_flags = format!("-fuse-ld={}", android_linker);
+        env::set_var("LDFLAGS", linker_flags);
+    }
+
+    println!(
+        "Android cross-compilation setup complete for {}",
+        target_clone
+    );
 }
 
 fn get_nim_codex_dir() -> PathBuf {
