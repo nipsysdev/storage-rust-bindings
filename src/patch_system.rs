@@ -5,6 +5,7 @@ use std::process::Command;
 pub struct PatchEngine {
     verbose: bool,
     patches_dir: PathBuf,
+    base_dir: PathBuf,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -25,10 +26,12 @@ pub enum PatchError {
 impl PatchEngine {
     pub fn new(verbose: bool) -> Result<Self, PatchError> {
         let patches_dir = PathBuf::from("android-patches");
+        let base_dir = PathBuf::from(".");
 
         Ok(Self {
             verbose,
             patches_dir,
+            base_dir,
         })
     }
 
@@ -250,7 +253,7 @@ impl PatchEngine {
         let output = Command::new("git")
             .arg("apply")
             .arg(patch_file)
-            .current_dir(".")
+            .current_dir(&self.base_dir)
             .output()
             .map_err(|e| {
                 PatchError::ApplicationFailed(format!("Failed to run patch command: {}", e))
@@ -317,7 +320,7 @@ impl PatchEngine {
             .arg("apply")
             .arg("--check")
             .arg(patch_file)
-            .current_dir(".")
+            .current_dir(&self.base_dir)
             .output()
             .map_err(|e| {
                 PatchError::ValidationFailed(format!("Failed to run patch --dry-run: {}", e))

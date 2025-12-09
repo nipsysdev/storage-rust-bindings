@@ -1,23 +1,23 @@
 --- a/vendor/nim-codex/build.nims
 +++ b/vendor/nim-codex/build.nims
-@@ -28,6 +28,41 @@ proc buildBinary(name: string, srcDir = "./", params = "", lang = "c") =
- proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic") =
+@@ -29,25 +29,77 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic")
    if not dirExists "build":
      mkDir "build"
-+
+ 
 +  var extra_params = params
 +
 +  # Android-specific compiler flags
 +  when defined(android):
 +    let android_cc = getEnv("CODEX_ANDROID_CC", "aarch64-linux-android21-clang")
 +    let android_ndk = getEnv("ANDROID_NDK_HOME")
++    let android_clang_version = getEnv("ANDROID_CLANG_VERSION")
 +    let android_linker = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/bin/ld.lld"
-+    let android_omp_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux/aarch64"
++    let android_omp_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/" & android_clang_version & "/lib/linux/aarch64"
 +    let android_sysroot = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/sysroot"
 +    let android_lib_path = android_sysroot & "/usr/lib/aarch64-linux-android"
 +    let android_lib_path21 = android_lib_path & "/21"
 +    let android_lib_path31 = android_lib_path & "/31"
-+    let android_clang_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux"
++    let android_clang_lib = android_ndk & "/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/" & android_clang_version & "/lib/linux"
 +    let android_builtins = android_clang_lib & "/libclang_rt.builtins-aarch64-android.a"
 +    let android_crtbegin = android_lib_path21 & "/crtbegin_so.o"
 +    let android_crtend = android_lib_path21 & "/crtend_so.o"
@@ -39,10 +39,10 @@
 +    extra_params &= " --passl:-Wl,--allow-multiple-definition"
 +    extra_params &= " --passl:-Wl,--undefined-version"
 +    extra_params &= " --passl:--target=aarch64-linux-android21"
- 
++
    if `type` == "dynamic":
      let lib_name = (
-@@ -35,19 +70,35 @@ proc buildLibrary(name: string, srcDir = "./", params = "", `type` = "dynamic")
+       when defined(windows): name & ".dll"
        elif defined(macosx): name & ".dylib"
        else: name & ".so"
      )
@@ -81,7 +81,7 @@
  
  proc test(name: string, srcDir = "tests/", params = "", lang = "c") =
    buildBinary name, srcDir, params
-@@ -153,6 +204,11 @@ task libcodexDynamic, "Generate bindings":
+@@ -153,6 +205,11 @@ task libcodexDynamic, "Generate bindings":
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
  
@@ -93,7 +93,7 @@
    let name = "libcodex"
    buildLibrary name, "library/", params, "dynamic"
  
-@@ -163,5 +219,10 @@ task libcodexStatic, "Generate bindings":
+@@ -163,5 +220,10 @@ task libcodexStatic, "Generate bindings":
        if param.len > 0 and param.startsWith("-"):
          params.add " " & param
  
