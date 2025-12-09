@@ -1,9 +1,46 @@
 use std::env;
+use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
 // Import patch_system from the main module
 use crate::patch_system::{get_android_arch_from_target, PatchEngine};
+
+/// Detects the Clang version in the Android NDK
+fn detect_clang_version(android_ndk: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let clang_lib_path =
+        PathBuf::from(android_ndk).join("toolchains/llvm/prebuilt/linux-x86_64/lib/clang");
+
+    if !clang_lib_path.exists() {
+        return Err(format!("Clang lib path not found: {}", clang_lib_path.display()).into());
+    }
+
+    // Read the directory and find the highest version number
+    let mut versions = Vec::new();
+    for entry in fs::read_dir(clang_lib_path)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_dir() {
+            if let Some(version_str) = path.file_name().and_then(|n| n.to_str()) {
+                if let Ok(version_num) = version_str.parse::<u32>() {
+                    versions.push((version_num, version_str.to_string()));
+                }
+            }
+        }
+    }
+
+    if versions.is_empty() {
+        return Err("No Clang version directories found".into());
+    }
+
+    // Sort by version number and take the highest
+    versions.sort_by_key(|(num, _)| *num);
+    let (_, latest_version) = versions.last().unwrap();
+
+    println!("cargo:warning=Detected Clang version: {}", latest_version);
+    Ok(latest_version.to_string())
+}
 
 /// Sets up Android cross-compilation environment
 pub fn setup_android_cross_compilation(target: String) {
@@ -12,9 +49,15 @@ pub fn setup_android_cross_compilation(target: String) {
         target
     );
 
-    let android_sdk = env::var("ANDROID_SDK_ROOT").expect("ANDROID_SDK_ROOT hasn't been set");
+    // Try multiple environment variable names and fallback paths for Android SDK
+    let android_sdk = env::var("ANDROID_SDK_ROOT")
+        .or_else(|_| env::var("ANDROID_HOME"))
+        .expect("ANDROID_SDK_ROOT or ANDROID_HOME environment variable must be set");
 
-    let android_ndk = env::var("ANDROID_NDK_HOME").expect("ANDROID_NDK_HOME hasn't been set");
+    let android_ndk = env::var("NDK_HOME")
+        .or_else(|_| env::var("ANDROID_NDK_HOME"))
+        .or_else(|_| env::var("ANDROID_NDK_ROOT"))
+        .expect("NDK_HOME, ANDROID_NDK_HOME or ANDROID_NDK_ROOT environment variable must be set");
 
     if !std::path::Path::new(&android_sdk).exists() {
         panic!("Android SDK not found at {}.", android_sdk);
@@ -24,8 +67,8 @@ pub fn setup_android_cross_compilation(target: String) {
     }
 
     // Clean architecture-specific build artifacts to prevent cross-architecture contamination
-    println!("cargo:warning=Cleaning architecture-specific build artifacts for Android...");
-    clean_android_build_artifacts();
+    // This will be handled by the main build.rs clean_architecture_specific_artifacts() function
+    // which is called before Android setup
 
     let target_clone = target.clone();
 
@@ -37,6 +80,10 @@ pub fn setup_android_cross_compilation(target: String) {
     }
 
     let (arch, _) = get_android_arch_from_target(&target_clone);
+
+    // Detect Clang version dynamically
+    let clang_version =
+        detect_clang_version(&android_ndk).expect("Failed to detect Clang version in Android NDK");
 
     let toolchain_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
     let cc = format!("{}/{}21-clang", toolchain_path, target_clone);
@@ -139,6 +186,12 @@ pub fn setup_android_cross_compilation(target: String) {
         env::set_var("CODEX_SKIP_GIT_RESET", "1");
         env::set_var("CODEX_SKIP_SUBMODULE_RESET", "1");
         env::set_var("CODEX_SKIP_SUBMODULE_UPDATE", "1");
+
+        // CRITICAL: Set the environment variables that the build.nims patch expects
+        env::set_var("ANDROID_SDK_ROOT", &android_sdk);
+        env::set_var("ANDROID_NDK_HOME", &android_ndk);
+        env::set_var("ANDROID_NDK_ROOT", &android_ndk);
+        env::set_var("ANDROID_CLANG_VERSION", &clang_version);
     }
 
     // Set Rust/Cargo cross-compilation environment variables for circom-compat-ffi
@@ -187,8 +240,8 @@ pub fn setup_android_cross_compilation(target: String) {
     let (_, openmp_arch) = get_android_arch_from_target(&target_clone);
 
     let openmp_lib_path = format!(
-        "{}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/17/lib/linux/{}",
-        android_ndk, openmp_arch
+        "{}/toolchains/llvm/prebuilt/linux-x86_64/lib/clang/{}/lib/linux/{}",
+        android_ndk, clang_version, openmp_arch
     );
     println!("cargo:rustc-link-search=native={}", openmp_lib_path);
     println!("cargo:rustc-link-lib=static=omp");
@@ -234,73 +287,6 @@ pub fn setup_android_cross_compilation(target: String) {
         "Android cross-compilation setup complete for {}",
         target_clone
     );
-}
-
-/// Cleans Android build artifacts to prevent cross-architecture contamination
-pub fn clean_android_build_artifacts() {
-    let nim_codex_dir = PathBuf::from("vendor/nim-codex");
-
-    // Clean problematic pre-built libraries that cause architecture conflicts
-    let artifacts_to_clean = [
-        "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build",
-        "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a",
-        "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/*.o",
-        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target",
-        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/aarch64-linux-android",
-        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/release",
-        "vendor/nim-circom-compat/vendor/circom-compat-ffi/target/debug",
-        "nimcache",
-    ];
-
-    for artifact in &artifacts_to_clean {
-        if artifact.contains("*.o") {
-            // Handle glob patterns for .o files
-            let dir_path = nim_codex_dir.join(artifact.replace("/*.o", ""));
-            if dir_path.exists() && dir_path.is_dir() {
-                println!(
-                    "cargo:warning=Cleaning .o files in directory: {}",
-                    artifact.replace("/*.o", "")
-                );
-                if let Ok(entries) = std::fs::read_dir(&dir_path) {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
-                        if path.is_file() && path.extension().map_or(false, |ext| ext == "o") {
-                            let _ = std::fs::remove_file(&path);
-                        }
-                    }
-                }
-            }
-        } else {
-            let path = nim_codex_dir.join(artifact);
-            if path.exists() {
-                println!(
-                    "cargo:warning=Removing Android build artifact: {}",
-                    artifact
-                );
-                if path.is_dir() {
-                    let _ = std::fs::remove_dir_all(&path);
-                } else {
-                    let _ = std::fs::remove_file(&path);
-                }
-            }
-        }
-    }
-
-    // Also clean any Cargo build artifacts that might be architecture-specific
-    let cargo_target_dirs = [
-        nim_codex_dir.join("vendor/nim-circom-compat/vendor/circom-compat-ffi/target"),
-        nim_codex_dir.join("build"),
-    ];
-
-    for target_dir in &cargo_target_dirs {
-        if target_dir.exists() {
-            println!(
-                "cargo:warning=Cleaning Cargo target directory: {}",
-                target_dir.display()
-            );
-            let _ = std::fs::remove_dir_all(&target_dir);
-        }
-    }
 }
 
 /// Builds libcodex with static linking for Android
@@ -410,9 +396,10 @@ pub fn build_libcodex_dynamic_android(nim_codex_dir: &PathBuf, target: &str) {
         _ => {}
     }
 
-    let android_ndk = env::var("ANDROID_NDK_ROOT")
+    let android_ndk = env::var("NDK_HOME")
         .or_else(|_| env::var("ANDROID_NDK_HOME"))
-        .expect("ANDROID_NDK_ROOT or ANDROID_NDK_HOME must be set for Android builds");
+        .or_else(|_| env::var("ANDROID_NDK_ROOT"))
+        .expect("NDK_HOME, ANDROID_NDK_HOME or ANDROID_NDK_ROOT environment variable must be set");
     let sysroot = format!(
         "{}/toolchains/llvm/prebuilt/linux-x86_64/sysroot",
         android_ndk
