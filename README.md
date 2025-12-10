@@ -81,7 +81,7 @@ To build for Android targets, you need to set the Android SDK and NDK environmen
 
 ```bash
 export ANDROID_SDK_ROOT=/path/to/your/Android/Sdk
-export ANDROID_NDK_HOME=/path/to/your/Android/Sdk/ndk/26.2.11394342
+export ANDROID_NDK_HOME=/path/to/your/Android/Sdk/ndk/ndk_version
 cargo build --target aarch64-linux-android
 ```
 
