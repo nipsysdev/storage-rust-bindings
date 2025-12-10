@@ -48,7 +48,7 @@ env_logger = "0.10"
 tokio = { version = "1", features = ["macros", "io-util", "rt-multi-thread"] }
 
 [features]
-default = ["tokio"]
+default = ["tokio", "static-linking"]
 static-linking = []
 dynamic-linking = []
 android-patches = []
