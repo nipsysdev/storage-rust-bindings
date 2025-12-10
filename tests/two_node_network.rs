@@ -59,10 +59,12 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     let node1_peer_id = node1.peer_id()?;
     let node1_repo = node1.repo()?;
+    let debug1 = codex_bindings::debug(&node1).await?;
 
     println!("Node 1 started:");
     println!("  Peer ID: {}", node1_peer_id);
     println!("  Repository: {}", node1_repo);
+    println!("  SPR: {}", debug1.spr);
 
     // Configure node2 with different ports and bootstrap to node1
     println!("\n=== Creating Node 2 ===");
@@ -71,7 +73,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
         .data_dir(&node2_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
         .max_peers(50)
-        .discovery_port(8093);
+        .discovery_port(8093)
+        .add_bootstrap_node(&debug1.spr);
 
     // Manually set listen addresses since builder method doesn't exist
     node2_config.listen_addrs = vec![
@@ -91,7 +94,6 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get debug information for both nodes
     println!("\n=== Node Debug Information ===");
-    let debug1 = codex_bindings::debug(&node1).await?;
     let debug2 = codex_bindings::debug(&node2).await?;
 
     println!("Node 1 debug info:");
