@@ -428,12 +428,15 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     let target = env::var("TARGET").unwrap_or_default();
     let is_android = target.contains("android");
 
-    println!(
-        "cargo:rustc-link-search=native={}",
-        nim_codex_dir
-            .join("vendor/nim-libbacktrace/vendor/libbacktrace-upstream/.libs")
-            .display()
-    );
+    // Only add libbacktrace search paths for non-Android builds
+    if !is_android {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            nim_codex_dir
+                .join("vendor/nim-libbacktrace/vendor/libbacktrace-upstream/.libs")
+                .display()
+        );
+    }
 
     let circom_dir = if is_android {
         get_android_circom_dir(nim_codex_dir, &target)
@@ -467,12 +470,15 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
             .display()
     );
 
-    println!(
-        "cargo:rustc-link-search=native={}",
-        nim_codex_dir
-            .join("vendor/nim-libbacktrace/install/usr/lib")
-            .display()
-    );
+    // Only add libbacktrace install search paths for non-Android builds
+    if !is_android {
+        println!(
+            "cargo:rustc-link-search=native={}",
+            nim_codex_dir
+                .join("vendor/nim-libbacktrace/install/usr/lib")
+                .display()
+        );
+    }
 
     let leopard_dir_release = nim_codex_dir.join("nimcache/release/libcodex/vendor_leopard");
     let leopard_dir_debug = nim_codex_dir.join("nimcache/debug/libcodex/vendor_leopard");
@@ -488,11 +494,14 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
 
     println!("cargo:rustc-link-arg=-Wl,--whole-archive");
 
-    println!("cargo:rustc-link-lib=static=backtrace");
+    // Only link libbacktrace on non-Android builds (it's disabled for Android)
+    if !is_android {
+        println!("cargo:rustc-link-lib=static=backtrace");
+        println!("cargo:rustc-link-lib=static=backtracenim");
+    }
     println!("cargo:rustc-link-lib=static=circom_compat_ffi");
     println!("cargo:rustc-link-lib=static=natpmp");
     println!("cargo:rustc-link-lib=static=miniupnpc");
-    println!("cargo:rustc-link-lib=static=backtracenim");
     println!("cargo:rustc-link-lib=static=libleopard");
 
     println!("cargo:rustc-link-lib=static=codex");
