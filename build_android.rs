@@ -256,6 +256,10 @@ pub fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
     println!("cargo:rustc-link-arg=-Wl,--undefined-version");
 
+    // Disable LSE atomics detection for Android to prevent getauxval() crash on Android 16
+    // LSE atomics are a performance optimization that can be safely disabled
+    println!("cargo:rustc-env=RUSTFLAGS=-C target-feature=-lse");
+
     // Force Rust to use the Android NDK linker directly
     // Set the linker path in the environment so clang can find it
     let android_ld_path = format!("{}/toolchains/llvm/prebuilt/linux-x86_64/bin", android_ndk);
