@@ -519,8 +519,12 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
     println!("cargo:rustc-link-arg=-Wl,--defsym=__rust_probestack=0");
 
-    println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
-    println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
+    // Only use --defsym for non-Android targets
+    // Android builds get these symbols from cmdline_symbols.c
+    if !is_android {
+        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
+        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
+    }
 }
 
 fn link_dynamic_library(lib_dir: &PathBuf) {
