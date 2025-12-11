@@ -1,6 +1,6 @@
---- a/vendor/nim-codex/vendor/nim-circom-compat/circomcompat.nim	2025-12-06 20:36:03.564390004 -0500
-+++ b/vendor/nim-codex/vendor/nim-circom-compat/circomcompat.nim	2025-12-06 20:40:55.732800874 -0500
-@@ -5,13 +5,49 @@
+--- a/vendor/nim-codex/vendor/nim-circom-compat/circomcompat.nim	2025-12-11 14:52:49.397769664 -0500
++++ b/vendor/nim-codex/vendor/nim-circom-compat/circomcompat.nim	2025-12-11 14:52:42.961271859 -0500
+@@ -5,14 +5,77 @@
  
  const
    currentDir = currentSourcePath().parentDir()
@@ -12,6 +12,9 @@
 +  when defined(arm64):
 +    const libDir* = currentDir/"vendor/circom-compat-ffi"/"target"/"aarch64-linux-android"/"release"
 +    # const libDir* = currentDir/"vendor/circom-compat-ffi"/"target"/"aarch64-linux-android"/"debug" # XXX: uncomment for debug build
++  elif defined(x86_64):
++    const libDir* = currentDir/"vendor/circom-compat-ffi"/"target"/"x86_64-linux-android"/"release"
++    # const libDir* = currentDir/"vendor/circom-compat-ffi"/"target"/"x86_64-linux-android"/"debug" # XXX: uncomment for debug build
 +  else:
 +    const libDir* = currentDir/"vendor/circom-compat-ffi/target"/"release"
 +    # const libDir* = currentDir/"vendor/circom-compat-ffi/target"/"debug" # XXX: uncomment for debug build
@@ -25,7 +28,7 @@
 -  let
 +  var
      cmd = "cargo build --release --manifest-path=vendor/circom-compat-ffi/Cargo.toml"
-+
+ 
 +  when defined(android):
 +    when defined(arm64):
 +      # Android ARM64 cross-compilation
@@ -51,6 +54,31 @@
 +      let android_linker = getEnv("CC_aarch64_linux_android")
 +      if android_linker.len > 0:
 +        putEnv("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", android_linker)
- 
++    when defined(x86_64):
++      # Android x86_64 cross-compilation
++      cmd = "cargo build --release --target x86_64-linux-android --manifest-path=vendor/circom-compat-ffi/Cargo.toml"
++
++      # Set environment variables for Android cross-compilation
++      putEnv("CARGO_BUILD_TARGET", "x86_64-linux-android")
++      putEnv("CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER", getEnv("CC_x86_64_linux_android"))
++
++      # Set CC environment variable for Rust's cc crate
++      let android_cc = getEnv("CC_x86_64_linux_android")
++      if android_cc.len > 0:
++        putEnv("CC", android_cc)
++        putEnv("TARGET_CC", android_cc)
++
++      # Set AR environment variable
++      let android_ar = getEnv("AR_x86_64_linux_android")
++      if android_ar.len > 0:
++        putEnv("AR", android_ar)
++        putEnv("TARGET_AR", android_ar)
++
++      # Ensure Rust uses the correct linker
++      let android_linker = getEnv("CC_x86_64_linux_android")
++      if android_linker.len > 0:
++        putEnv("CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER", android_linker)
++
    warning "\nBuilding circom compat ffi: "
    warning cmd
+   let (output, exitCode) = gorgeEx cmd

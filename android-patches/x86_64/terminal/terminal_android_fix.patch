@@ -1,0 +1,58 @@
+--- a/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/pure/terminal.nim
++++ b/vendor/nim-codex/vendor/nimbus-build-system/vendor/Nim/lib/pure/terminal.nim
+@@ -331,7 +331,8 @@
+         return int(win.ws_row)
+     return 0
+ 
+-  var L_ctermid{.importc, header: "<stdio.h>".}: cint
++  when not defined(android):
++    var L_ctermid{.importc, header: "<stdio.h>".}: cint
+ 
+   proc terminalWidth*(): int =
+     ## Returns some reasonable terminal width from either standard file
+@@ -355,12 +356,16 @@
+       return w
+     w = terminalWidthIoctl([0, 1, 2]) # Try standard file descriptors
+     if w > 0: return w
+-    var cterm = newString(L_ctermid) # Try controlling tty
+-    var fd = open(ctermid(cstring(cterm)), O_RDONLY)
+-    if fd != -1:
+-      w = terminalWidthIoctl([int(fd)])
+-    discard close(fd)
+-    if w > 0: return w
++    when not defined(android):
++      var cterm = newString(L_ctermid) # Try controlling tty
++      var fd = open(ctermid(cstring(cterm)), O_RDONLY)
++      if fd != -1:
++        w = terminalWidthIoctl([int(fd)])
++      discard close(fd)
++      if w > 0: return w
++    when defined(android):
++      # Android doesn't have ctermid, use default width
++      return 80
+     return 80 # Finally default to venerable value
+ 
+   proc terminalHeight*(): int =
+@@ -389,12 +394,16 @@
+       return h
+     h = terminalHeightIoctl([0, 1, 2]) # Try standard file descriptors
+     if h > 0: return h
+-    var cterm = newString(L_ctermid) # Try controlling tty
+-    var fd = open(ctermid(cstring(cterm)), O_RDONLY)
+-    if fd != -1:
+-      h = terminalHeightIoctl([int(fd)])
+-    discard close(fd)
+-    if h > 0: return h
++    when not defined(android):
++      var cterm = newString(L_ctermid) # Try controlling tty
++      var fd = open(ctermid(cstring(cterm)), O_RDONLY)
++      if fd != -1:
++        h = terminalHeightIoctl([int(fd)])
++      discard close(fd)
++      if h > 0: return h
++    when defined(android):
++      # Android doesn't have ctermid, use default height
++      return 24
+     return 0 # Could not determine height
+ 
+ proc terminalSize*(): tuple[w, h: int] =
