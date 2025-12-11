@@ -1,20 +1,32 @@
---- a/vendor/nim-codex/Makefile	2025-12-04 21:35:44.237128307 -0500
-+++ b/vendor/nim-codex/Makefile	2025-12-04 21:36:13.348072351 -0500
-@@ -80,9 +80,14 @@
- # "variables.mk" was not included, so we update the submodules.
- GIT_SUBMODULE_UPDATE := git submodule update --init --recursive
- .DEFAULT:
--	+@ echo -e "Git submodules not found. Running '$(GIT_SUBMODULE_UPDATE)'.\n"; \
--		$(GIT_SUBMODULE_UPDATE); \
--		echo
-+	ifndef CODEX_SKIP_SUBMODULE_UPDATE
-+		+@ echo -e "Git submodules not found. Running '$(GIT_SUBMODULE_UPDATE)'.\n"; \
-+			$(GIT_SUBMODULE_UPDATE); \
-+			echo
-+	else
-+		+@ echo -e "Git submodules not found. Skipping update to preserve patches.\n"; \
-+			echo
-+	endif
- # Now that the included *.mk files appeared, and are newer than this file, Make will restart itself:
- # https://www.gnu.org/software/make/manual/make.html#Remaking-Makefiles
- #
+--- a/vendor/nim-codex/Makefile
++++ b/vendor/nim-codex/Makefile
+@@ -258,9 +258,19 @@ libcodex:
+ 	$(MAKE) deps
+ 	rm -f build/libcodex*
+ 
++# Compile cmdline_symbols.c for Android builds
++ifeq ($(ANDROID),1)
++	mkdir -p build
++	$(CC) $(CFLAGS) -c cmdline_symbols.c -o build/cmdline_symbols.o
++endif
++
+ ifeq ($(STATIC), 1)
+ 		echo -e $(BUILD_MSG) "build/$@.a" && \
+ 		$(ENV_SCRIPT) nim libcodexStatic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
++# Add cmdline_symbols.o to the static library for Android
++ifeq ($(ANDROID),1)
++		$(AR) rcs build/libcodex.a build/cmdline_symbols.o
++endif
+ else ifeq ($(detected_OS),Windows)
+ 		echo -e $(BUILD_MSG) "build/$@.dll" && \
+ 		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-G \\\"MSYS Makefiles\\\" -DCMAKE_BUILD_TYPE=Release\"" codex.nims
+@@ -270,5 +280,9 @@ else ifeq ($(detected_OS),macOS)
+ else
+ 		echo -e $(BUILD_MSG) "build/$@.so" && \
+ 		$(ENV_SCRIPT) nim libcodexDynamic $(NIM_PARAMS) -d:LeopardCmakeFlags="\"-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_BUILD_TYPE=Release\"" codex.nims
++# Add cmdline_symbols.o to the shared library for Android
++ifeq ($(ANDROID),1)
++		$(CC) -shared -o build/libcodex.so build/libcodex.so build/cmdline_symbols.o
++endif
+ endif
+ endif # "variables.mk" was not included
