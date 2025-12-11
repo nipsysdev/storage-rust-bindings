@@ -61,18 +61,18 @@ cargo test-doc
 
 This crate supports two linking modes via Cargo features:
 
-### Dynamic Linking (Default)
+### Static Linking (Default)
 
 ```bash
 cargo build
 # or explicitly
-cargo build --features dynamic-linking
+cargo build --features static-linking
 ```
 
-### Static Linking
+### Dynamic Linking
 
 ```bash
-cargo build --features static-linking
+cargo build --features dynamic-linking
 ```
 
 ## Android Builds
