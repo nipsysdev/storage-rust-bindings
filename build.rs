@@ -63,7 +63,9 @@ fn clean_build_artifacts() {
     if libcodex_so_path.exists() {
         if let Ok(output) = Command::new("file").arg(&libcodex_so_path).output() {
             let file_info = String::from_utf8_lossy(&output.stdout);
-            let is_android_lib = file_info.contains("ARM aarch64") && file_info.contains("Android");
+            let is_android_lib = (file_info.contains("ARM aarch64")
+                || file_info.contains("x86-64"))
+                && file_info.contains("Android");
             let is_desktop_lib = file_info.contains("x86-64") || file_info.contains("x86_64");
             let is_desktop_build = current_arch.starts_with("desktop-");
             let is_android_build = current_arch.starts_with("android-");

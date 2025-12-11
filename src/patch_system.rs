@@ -393,6 +393,7 @@ impl PatchEngine {
 pub fn get_android_arch_from_target(target: &str) -> (&'static str, &'static str) {
     match target {
         "aarch64-linux-android" => ("arm64", "aarch64"),
+        "x86_64-linux-android" => ("x86_64", "x86_64"),
         _ => panic!("Unsupported Android target: {}", target),
     }
 }

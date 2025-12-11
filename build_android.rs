@@ -103,10 +103,22 @@ pub fn setup_android_cross_compilation(target: String) {
         env::set_var(format!("AR_{}", target_clone), &ar);
         env::set_var(format!("RANLIB_{}", target_clone), &ranlib);
 
-        env::set_var("CC_aarch64_linux_android", &cc);
-        env::set_var("CXX_aarch64_linux_android", &cxx);
-        env::set_var("AR_aarch64_linux_android", &ar);
-        env::set_var("RANLIB_aarch64_linux_android", &ranlib);
+        // Set architecture-specific environment variables
+        match target_clone.as_str() {
+            "aarch64-linux-android" => {
+                env::set_var("CC_aarch64_linux_android", &cc);
+                env::set_var("CXX_aarch64_linux_android", &cxx);
+                env::set_var("AR_aarch64_linux_android", &ar);
+                env::set_var("RANLIB_aarch64_linux_android", &ranlib);
+            }
+            "x86_64-linux-android" => {
+                env::set_var("CC_x86_64_linux_android", &cc);
+                env::set_var("CXX_x86_64_linux_android", &cxx);
+                env::set_var("AR_x86_64_linux_android", &ar);
+                env::set_var("RANLIB_x86_64_linux_android", &ranlib);
+            }
+            _ => panic!("Unsupported Android target: {}", target_clone),
+        }
     }
 
     let sysroot = format!(
@@ -142,11 +154,13 @@ pub fn setup_android_cross_compilation(target: String) {
 
     let arch_flag = match target_clone.as_str() {
         "aarch64-linux-android" => "-march=armv8-a",
+        "x86_64-linux-android" => "-march=x86-64",
         _ => panic!("Unsupported Android target: {}", target_clone),
     };
 
     let arch_define = match target_clone.as_str() {
         "aarch64-linux-android" => "-d:arm64",
+        "x86_64-linux-android" => "-d:x86_64",
         _ => panic!("Unsupported Android target: {}", target_clone),
     };
     let android_defines = format!("{} -d:android -d:debug -d:disable_libbacktrace -d:noIntrinsicsBitOpts -d:NO_X86_INTRINSICS -d:__NO_INLINE_ASM__ -d:noX86 -d:noSSE -d:noAVX -d:noAVX2 -d:noAVX512 -d:noX86Intrinsics -d:noSimd -d:noInlineAsm", arch_define);
@@ -163,6 +177,10 @@ pub fn setup_android_cross_compilation(target: String) {
             "aarch64-linux-android" => {
                 env::set_var("ANDROID_ARM64_BUILD", "1");
                 env::set_var("TARGET_ARCH", "arm64");
+            }
+            "x86_64-linux-android" => {
+                env::set_var("ANDROID_X86_64_BUILD", "1");
+                env::set_var("TARGET_ARCH", "x86_64");
             }
             _ => panic!("Unsupported Android target: {}", target_clone),
         }
@@ -197,22 +215,31 @@ pub fn setup_android_cross_compilation(target: String) {
     // Set Rust/Cargo cross-compilation environment variables for circom-compat-ffi
     unsafe {
         env::set_var("CARGO_BUILD_TARGET", &target_clone);
-        env::set_var("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", &cc);
 
-        // Ensure the cc crate can find the Android compiler
-        env::set_var("CC_aarch64_linux_android", &cc);
-        env::set_var("CXX_aarch64_linux_android", &cxx);
-        env::set_var("AR_aarch64_linux_android", &ar);
-        env::set_var("RANLIB_aarch64_linux_android", &ranlib);
+        // Set architecture-specific environment variables
+        match target_clone.as_str() {
+            "aarch64-linux-android" => {
+                env::set_var("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", &cc);
+                env::set_var("CC_aarch64_linux_android", &cc);
+                env::set_var("CXX_aarch64_linux_android", &cxx);
+                env::set_var("AR_aarch64_linux_android", &ar);
+                env::set_var("RANLIB_aarch64_linux_android", &ranlib);
+            }
+            "x86_64-linux-android" => {
+                env::set_var("CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER", &cc);
+                env::set_var("CC_x86_64_linux_android", &cc);
+                env::set_var("CXX_x86_64_linux_android", &cxx);
+                env::set_var("AR_x86_64_linux_android", &ar);
+                env::set_var("RANLIB_x86_64_linux_android", &ranlib);
+            }
+            _ => panic!("Unsupported Android target: {}", target_clone),
+        }
 
         // Set generic CC/AR for Rust's build scripts that don't use target-specific vars
         env::set_var("CC", &cc);
         env::set_var("CXX", &cxx);
         env::set_var("AR", &ar);
         env::set_var("RANLIB", &ranlib);
-
-        // Force Cargo to use the Android linker
-        env::set_var("CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER", &cc);
     }
 
     println!("cargo:rustc-link-lib=dylib=android");
@@ -311,7 +338,6 @@ pub fn build_libcodex_static_android(nim_codex_dir: &PathBuf, codex_params: &str
     make_cmd.env("NIM_PARAMS", codex_params); // This prevents the .DEFAULT target from running
 
     make_cmd.env("USE_LIBBACKTRACE", "0");
-    make_cmd.env("CODEX_ANDROID_CPU", "arm64");
     // CRITICAL: Prevent Makefile from updating submodules after patches are applied
     // This ensures our patches don't get overwritten by git submodule update
     make_cmd.env("CODEX_LIB_PARAMS", codex_params);
@@ -397,6 +423,10 @@ pub fn build_libcodex_dynamic_android(nim_codex_dir: &PathBuf, target: &str) {
             make_cmd.env("ANDROID_ARM64_BUILD", "1");
             make_cmd.env("TARGET_ARCH", "arm64");
         }
+        "x86_64-linux-android" => {
+            make_cmd.env("ANDROID_X86_64_BUILD", "1");
+            make_cmd.env("TARGET_ARCH", "x86_64");
+        }
         _ => {}
     }
 
@@ -465,6 +495,7 @@ pub fn build_libcodex_dynamic_android(nim_codex_dir: &PathBuf, target: &str) {
 pub fn get_android_circom_dir(nim_codex_dir: &PathBuf, target: &str) -> PathBuf {
     let circom_dir = match target {
         "aarch64-linux-android" => "aarch64-linux-android",
+        "x86_64-linux-android" => "x86_64-linux-android",
         _ => "aarch64-linux-android",
     };
 
