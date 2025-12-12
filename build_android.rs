@@ -127,28 +127,11 @@ pub fn setup_android_cross_compilation(target: String) {
     );
 
     println!(
-        "cargo:rustc-link-arg=-L{}/usr/lib/{}",
-        sysroot, target_clone
-    );
-    println!(
         "cargo:rustc-link-arg=-L{}/usr/lib/{}/21",
         sysroot, target_clone
     );
     println!(
-        "cargo:rustc-link-arg=-L{}/usr/lib/{}/31",
-        sysroot, target_clone
-    );
-
-    println!(
         "cargo:rustc-link-arg=-L{}/usr/lib/{}",
-        sysroot, target_clone
-    );
-    println!(
-        "cargo:rustc-link-arg=-L{}/usr/lib/{}/21",
-        sysroot, target_clone
-    );
-    println!(
-        "cargo:rustc-link-arg=-L{}/usr/lib/{}/31",
         sysroot, target_clone
     );
 
@@ -248,15 +231,7 @@ pub fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-link-lib=dylib=c++_shared");
 
     println!(
-        "cargo:rustc-link-search=native={}/usr/lib/{}",
-        sysroot, target_clone
-    );
-    println!(
         "cargo:rustc-link-search=native={}/usr/lib/{}/21",
-        sysroot, target_clone
-    );
-    println!(
-        "cargo:rustc-link-search=native={}/usr/lib/{}/31",
         sysroot, target_clone
     );
     println!(
@@ -297,6 +272,29 @@ pub fn setup_android_cross_compilation(target: String) {
     println!("cargo:rustc-env=PATH={}", new_path);
     // Let Android NDK clang use its default linker
     // println!("cargo:rustc-link-arg=-fuse-ld=lld");
+
+    // FIX: Force the use of Android NDK lld linker and use shared libc
+    // This prevents the PIC linking error with __cpu_model symbol
+    println!("cargo:rustc-link-arg=-fuse-ld=lld");
+
+    // Add linker flags to avoid the problematic static libraries
+    println!("cargo:rustc-link-arg=-Wl,--as-needed");
+    println!("cargo:rustc-link-arg=-Wl,--gc-sections");
+
+    // Explicitly link against the shared libc from API level 21
+    println!(
+        "cargo:rustc-link-arg=-Wl,-rpath,{}/usr/lib/{}/21",
+        sysroot, target_clone
+    );
+
+    // Force dynamic linking for libc to avoid PIC issues
+    println!("cargo:rustc-link-lib=dylib=c");
+    println!("cargo:rustc-link-lib=dylib=m");
+
+    // Manually add the Android runtime libraries that would normally be included
+    println!("cargo:rustc-link-lib=dylib=dl");
+
+    // pthread is built into libc on all Android architectures, no separate linking needed
 
     // Set linker environment variables that BearSSL will inherit
     unsafe {
