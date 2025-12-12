@@ -1,6 +1,6 @@
 --- a/vendor/nim-codex/cmdline_symbols.c
 +++ b/vendor/nim-codex/cmdline_symbols.c
-@@ -0,0 +1,8 @@
+@@ -0,0 +1,9 @@
 +// Android-compatible symbol definitions for cmdCount and cmdLine
 +// These symbols are normally defined in the Nim-generated main function,
 +// but when building as a library, they need to be defined explicitly.
