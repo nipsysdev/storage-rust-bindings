@@ -58,32 +58,189 @@ fn clean_build_artifacts() {
 
     // Check if we have an incompatible library even if architecture appears unchanged
     let mut force_cleanup = false;
+
+    // Check both libcodex.so and libcodex.a for incompatibility
     let libcodex_so_path = nim_codex_dir.join("build").join("libcodex.so");
+    let libcodex_a_path = nim_codex_dir.join("build").join("libcodex.a");
 
-    if libcodex_so_path.exists() {
-        if let Ok(output) = Command::new("file").arg(&libcodex_so_path).output() {
-            let file_info = String::from_utf8_lossy(&output.stdout);
-            let is_android_lib = (file_info.contains("ARM aarch64")
-                || file_info.contains("x86-64"))
-                && file_info.contains("Android");
-            let is_desktop_lib = file_info.contains("x86-64") || file_info.contains("x86_64");
-            let is_desktop_build = current_arch.starts_with("desktop-");
-            let is_android_build = current_arch.starts_with("android-");
+    // Check problematic static libraries that cause linking errors
+    let static_libs_to_check = [
+        (
+            "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/libnatpmp.a",
+            "libnatpmp.a",
+        ),
+        (
+            "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build/libminiupnpc.a",
+            "libminiupnpc.a",
+        ),
+        (
+            "nimcache/release/libcodex/vendor_leopard/liblibleopard.a",
+            "liblibleopard.a",
+        ),
+    ];
 
-            // Force cleanup if we have a desktop library but building for Android
-            if is_desktop_lib && is_android_build {
-                println!(
-                    "cargo:warning=Detected desktop library on Android build, forcing cleanup"
-                );
-                force_cleanup = true;
+    // Function to check if a library is compatible with the target architecture
+    let check_library_compatibility = |lib_path: &PathBuf, lib_name: &str| -> bool {
+        if !lib_path.exists() {
+            return false; // Library doesn't exist, no incompatibility
+        }
+
+        let is_android_build = current_arch.starts_with("android-");
+        let is_desktop_build = current_arch.starts_with("desktop-");
+
+        // For static libraries (.a), we need to extract and check object files
+        if lib_name.ends_with(".a") {
+            // Create a temporary directory for extraction
+            let temp_dir = nim_codex_dir.join("temp_check");
+            if let Err(_) = std::fs::create_dir_all(&temp_dir) {
+                return false;
             }
-            // Force cleanup if we have an Android library but building for desktop
-            else if is_android_lib && is_desktop_build {
-                println!(
-                    "cargo:warning=Detected Android library on desktop build, forcing cleanup"
-                );
-                force_cleanup = true;
+
+            // Extract the archive
+            let ar_output = Command::new("ar")
+                .arg("x")
+                .arg(lib_path)
+                .current_dir(&temp_dir)
+                .output();
+
+            if let Ok(output) = ar_output {
+                if output.status.success() {
+                    // Check the first .o file we can find
+                    if let Ok(entries) = std::fs::read_dir(&temp_dir) {
+                        for entry in entries.flatten() {
+                            let path = entry.path();
+                            if path.is_file() && path.extension().map_or(false, |ext| ext == "o") {
+                                if let Ok(file_output) = Command::new("file").arg(&path).output() {
+                                    let file_info = String::from_utf8_lossy(&file_output.stdout);
+
+                                    // Check for Android ARM64
+                                    if is_android_build && current_arch.contains("aarch64") {
+                                        let is_desktop_x86_64 = file_info.contains("x86-64")
+                                            && !file_info.contains("Android");
+
+                                        if is_desktop_x86_64 {
+                                            println!(
+                                                "cargo:warning=Detected x86-64 object file in {} on Android ARM64 build, forcing cleanup",
+                                                lib_name
+                                            );
+
+                                            // Clean up temp directory
+                                            let _ = std::fs::remove_dir_all(&temp_dir);
+                                            return true; // Force cleanup
+                                        }
+                                    }
+                                    // Check for Android x86_64
+                                    else if is_android_build && current_arch.contains("x86_64") {
+                                        let is_desktop_x86_64 = file_info.contains("x86-64")
+                                            && !file_info.contains("Android");
+
+                                        if is_desktop_x86_64 {
+                                            println!(
+                                                "cargo:warning=Detected desktop x86-64 object file in {} on Android x86_64 build, forcing cleanup",
+                                                lib_name
+                                            );
+
+                                            // Clean up temp directory
+                                            let _ = std::fs::remove_dir_all(&temp_dir);
+                                            return true; // Force cleanup
+                                        }
+                                    }
+                                    // Check for desktop builds
+                                    else if is_desktop_build {
+                                        let is_android_lib = (file_info.contains("ARM aarch64")
+                                            || file_info.contains("x86-64"))
+                                            && file_info.contains("Android");
+
+                                        if is_android_lib {
+                                            println!(
+                                                "cargo:warning=Detected Android object file in {} on desktop build, forcing cleanup",
+                                                lib_name
+                                            );
+
+                                            // Clean up temp directory
+                                            let _ = std::fs::remove_dir_all(&temp_dir);
+                                            return true; // Force cleanup
+                                        }
+                                    }
+
+                                    // We found our answer, break the loop
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
+            // Clean up temp directory
+            let _ = std::fs::remove_dir_all(&temp_dir);
+        }
+        // For shared libraries (.so), we can check directly
+        else {
+            if let Ok(output) = Command::new("file").arg(lib_path).output() {
+                let file_info = String::from_utf8_lossy(&output.stdout);
+
+                // Check for Android ARM64
+                if is_android_build && current_arch.contains("aarch64") {
+                    let is_desktop_x86_64 =
+                        file_info.contains("x86-64") && !file_info.contains("Android");
+
+                    if is_desktop_x86_64 {
+                        println!(
+                            "cargo:warning=Detected x86-64 {} on Android ARM64 build, forcing cleanup",
+                            lib_name
+                        );
+                        return true; // Force cleanup
+                    }
+                }
+                // Check for Android x86_64
+                else if is_android_build && current_arch.contains("x86_64") {
+                    let is_desktop_x86_64 =
+                        file_info.contains("x86-64") && !file_info.contains("Android");
+
+                    if is_desktop_x86_64 {
+                        println!(
+                            "cargo:warning=Detected desktop x86-64 {} on Android x86_64 build, forcing cleanup",
+                            lib_name
+                        );
+                        return true; // Force cleanup
+                    }
+                }
+                // Check for desktop builds
+                else if is_desktop_build {
+                    let is_android_lib = (file_info.contains("ARM aarch64")
+                        || file_info.contains("x86-64"))
+                        && file_info.contains("Android");
+
+                    if is_android_lib {
+                        println!(
+                            "cargo:warning=Detected Android {} on desktop build, forcing cleanup",
+                            lib_name
+                        );
+                        return true; // Force cleanup
+                    }
+                }
+            }
+        }
+
+        false // No incompatibility detected
+    };
+
+    // Check libcodex.so if it exists
+    if libcodex_so_path.exists() && check_library_compatibility(&libcodex_so_path, "libcodex.so") {
+        force_cleanup = true;
+    }
+
+    // Check libcodex.a if it exists
+    if libcodex_a_path.exists() && check_library_compatibility(&libcodex_a_path, "libcodex.a") {
+        force_cleanup = true;
+    }
+
+    // Check problematic static libraries
+    for (lib_path, lib_name) in &static_libs_to_check {
+        let full_path = nim_codex_dir.join(lib_path);
+        if check_library_compatibility(&full_path, lib_name) {
+            force_cleanup = true;
         }
     }
 
