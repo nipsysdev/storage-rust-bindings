@@ -6,6 +6,9 @@ use std::process::Command;
 // Import patch_system from the main module
 use crate::patch_system::{get_android_arch_from_target, PatchEngine};
 
+// Import the parallelism module for get_parallel_jobs function
+use super::parallelism::get_parallel_jobs;
+
 /// Detects the Clang version in the Android NDK
 fn detect_clang_version(android_ndk: &str) -> Result<String, Box<dyn std::error::Error>> {
     let clang_lib_path =
@@ -324,7 +327,7 @@ pub fn build_libcodex_static_android(nim_codex_dir: &PathBuf, codex_params: &str
 
     let mut make_cmd = Command::new("make");
     make_cmd.args(&[
-        "-j12",
+        &format!("-j{}", get_parallel_jobs()),
         "-C",
         &nim_codex_dir.to_string_lossy(),
         "STATIC=1",
@@ -383,7 +386,12 @@ pub fn build_libcodex_dynamic_android(nim_codex_dir: &PathBuf, target: &str) {
     let arch_flag = env::var("CODEX_ANDROID_ARCH_FLAG").unwrap_or_default();
 
     let mut make_cmd = Command::new("make");
-    make_cmd.args(&["-j12", "-C", &nim_codex_dir.to_string_lossy(), "libcodex"]);
+    make_cmd.args(&[
+        &format!("-j{}", get_parallel_jobs()),
+        "-C",
+        &nim_codex_dir.to_string_lossy(),
+        "libcodex",
+    ]);
 
     make_cmd.env("NIM_PARAMS", &android_defines);
 
