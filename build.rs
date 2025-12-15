@@ -528,19 +528,7 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
         eprintln!("Build stdout:");
         eprintln!("{}", stdout);
 
-        panic!(
-            "Failed to build libcodex with static linking. This could be due to:\n\
-             1. Missing build dependencies (C compiler, make, git)\n\
-             2. Network issues during repository cloning\n\
-             3. Insufficient disk space or memory\n\
-             4. Build timeout in CI environments\n\
-             \n\
-             For troubleshooting, try building manually:\n\
-             cd {:?}\n\
-             make deps\n\
-             make STATIC=1 libcodex",
-            nim_codex_dir
-        );
+        panic!("Failed to build libcodex with static linking.");
     }
 
     println!("Successfully built libcodex (static)");
