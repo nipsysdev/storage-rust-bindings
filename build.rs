@@ -8,7 +8,11 @@ mod patch_system;
 #[path = "src_build/build_android.rs"]
 mod build_android;
 
+#[path = "src_build/parallelism.rs"]
+mod parallelism;
+
 use build_android::*;
+use parallelism::get_parallel_jobs;
 
 /// Gets the current target architecture string for comparison
 fn get_current_architecture() -> String {
@@ -496,7 +500,7 @@ fn build_libcodex_static(nim_codex_dir: &PathBuf) {
 
     let mut make_cmd = Command::new("make");
     make_cmd.args(&[
-        "-j12",
+        &format!("-j{}", get_parallel_jobs()),
         "-C",
         &nim_codex_dir.to_string_lossy(),
         "STATIC=1",
