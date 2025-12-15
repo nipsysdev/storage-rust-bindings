@@ -9,8 +9,6 @@ pub mod p2p;
 pub mod storage;
 pub mod upload;
 
-pub mod patch_system;
-
 // Debug operations and types
 pub use debug::{debug, peer_debug, update_log_level, DebugInfo};
 
