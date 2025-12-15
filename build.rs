@@ -2,10 +2,10 @@ use std::env;
 use std::path::PathBuf;
 use std::process::Command;
 
-#[path = "src/patch_system.rs"]
+#[path = "src_build/patch_system.rs"]
 mod patch_system;
 
-#[path = "build_android.rs"]
+#[path = "src_build/build_android.rs"]
 mod build_android;
 
 use build_android::*;
@@ -599,9 +599,91 @@ fn ensure_libcodex(nim_codex_dir: &PathBuf, lib_dir: &PathBuf, linking_mode: Lin
     }
 }
 
+/// Compiles the cmdline_symbols.c file for all builds (desktop and Android)
+fn compile_cmdline_symbols() {
+    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let cmdline_symbols_c = PathBuf::from("src_build/cmdline_symbols.c");
+    let cmdline_symbols_o = out_dir.join("cmdline_symbols.o");
+
+    let target = env::var("TARGET").unwrap_or_default();
+    let is_android = target.contains("android");
+
+    // Use appropriate compiler for the target
+    let cc = if is_android {
+        env::var(format!("CC_{}", target)).unwrap_or_else(|_| {
+            // Fallback to Android NDK clang if target-specific CC is not set
+            env::var("CODEX_ANDROID_CC").unwrap_or_else(|_| "clang".to_string())
+        })
+    } else {
+        "cc".to_string()
+    };
+
+    // Compile the C file
+    let mut compile_cmd = Command::new(&cc);
+    compile_cmd.args(&[
+        "-c",
+        &cmdline_symbols_c.to_string_lossy(),
+        "-o",
+        &cmdline_symbols_o.to_string_lossy(),
+    ]);
+
+    // Add Android-specific flags if needed
+    if is_android {
+        if let Ok(cflags) = env::var("CFLAGS") {
+            compile_cmd.args(cflags.split_whitespace());
+        }
+    }
+
+    let output = compile_cmd
+        .output()
+        .expect("Failed to compile cmdline_symbols.c");
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        panic!(
+            "Failed to compile cmdline_symbols.c with {}:\nstdout: {}\nstderr: {}",
+            cc, stdout, stderr
+        );
+    }
+
+    // Create static library
+    let ar = if is_android {
+        env::var(format!("AR_{}", target))
+            .unwrap_or_else(|_| env::var("CODEX_ANDROID_AR").unwrap_or_else(|_| "ar".to_string()))
+    } else {
+        "ar".to_string()
+    };
+
+    let output = Command::new(&ar)
+        .args(&[
+            "rcs",
+            &out_dir.join("libcmdline_symbols.a").to_string_lossy(),
+            &cmdline_symbols_o.to_string_lossy(),
+        ])
+        .output()
+        .expect("Failed to create libcmdline_symbols.a");
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        panic!(
+            "Failed to create libcmdline_symbols.a with {}:\nstdout: {}\nstderr: {}",
+            ar, stdout, stderr
+        );
+    }
+
+    // Tell cargo to link the static library
+    println!("cargo:rustc-link-search=native={}", out_dir.display());
+    println!("cargo:rerun-if-changed=src_build/cmdline_symbols.c");
+}
+
 fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     let target = env::var("TARGET").unwrap_or_default();
     let is_android = target.contains("android");
+
+    // Compile and link cmdline_symbols.c for all builds (desktop and Android)
+    compile_cmdline_symbols();
 
     // Only add libbacktrace search paths for non-Android builds
     if !is_android {
@@ -694,12 +776,8 @@ fn link_static_library(nim_codex_dir: &PathBuf, _lib_dir: &PathBuf) {
     println!("cargo:rustc-link-arg=-Wl,--allow-multiple-definition");
     println!("cargo:rustc-link-arg=-Wl,--defsym=__rust_probestack=0");
 
-    // Only use --defsym for non-Android targets
-    // Android builds get these symbols from cmdline_symbols.c
-    if !is_android {
-        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdCount=0");
-        println!("cargo:rustc-link-arg=-Wl,--defsym=cmdLine=0");
-    }
+    // Link cmdline_symbols.o for all builds (desktop and Android)
+    println!("cargo:rustc-link-lib=static=cmdline_symbols");
 }
 
 fn link_dynamic_library(lib_dir: &PathBuf) {
