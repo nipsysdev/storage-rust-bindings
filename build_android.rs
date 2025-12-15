@@ -503,8 +503,51 @@ pub fn get_android_circom_dir(nim_codex_dir: &PathBuf, target: &str) -> PathBuf 
     ))
 }
 
+/// Forces LevelDB rebuild for Android to ensure proper cross-compilation
+pub fn force_leveldb_rebuild_android(nim_codex_dir: &PathBuf) {
+    println!("🔧 Forcing LevelDB rebuild for Android...");
+
+    let leveldb_dir = nim_codex_dir.join("vendor/nim-leveldbstatic");
+    let leveldb_build_dir = leveldb_dir.join("build");
+
+    // Remove LevelDB build directory
+    if leveldb_build_dir.exists() {
+        println!(
+            "  Removing LevelDB build directory: {:?}",
+            leveldb_build_dir
+        );
+        let _ = fs::remove_dir_all(&leveldb_build_dir);
+    }
+
+    // Remove any compiled LevelDB libraries
+    let leveldb_lib_patterns = ["libleveldb.a", "libleveldb.so", "leveldb"];
+
+    for pattern in &leveldb_lib_patterns {
+        let lib_path = leveldb_dir.join(pattern);
+        if lib_path.exists() {
+            println!("  Removing LevelDB library: {:?}", lib_path);
+            let _ = fs::remove_file(&lib_path);
+        }
+    }
+
+    // Remove any cached Nim files for LevelDB
+    let home_dir = env::var("HOME").unwrap_or_default();
+    let nim_cache_leveldb = PathBuf::from(home_dir)
+        .join(".cache/nim")
+        .join("leveldbstatic");
+
+    if nim_cache_leveldb.exists() {
+        println!("  Removing Nim LevelDB cache: {:?}", nim_cache_leveldb);
+        let _ = fs::remove_dir_all(&nim_cache_leveldb);
+    }
+
+    println!("  ✅ LevelDB rebuild preparation complete");
+}
+
 /// Applies Android patches during build
-pub fn apply_android_patches_during_build() -> Result<Vec<String>, Box<dyn std::error::Error>> {
+pub fn apply_android_patches_during_build(
+    nim_codex_dir: &PathBuf,
+) -> Result<Vec<String>, Box<dyn std::error::Error>> {
     let target = env::var("TARGET").unwrap_or_default();
     let (arch, _) = get_android_arch_from_target(&target);
 
@@ -512,6 +555,9 @@ pub fn apply_android_patches_during_build() -> Result<Vec<String>, Box<dyn std::
         "🔧 Applying Android patches for target: {} (arch: {})",
         target, arch
     );
+
+    // Force LevelDB rebuild for Android to ensure proper cross-compilation
+    force_leveldb_rebuild_android(nim_codex_dir);
 
     let engine = PatchEngine::new(true)?;
 
