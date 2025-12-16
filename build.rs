@@ -40,17 +40,6 @@ static DYNAMIC_ARTIFACTS: &[&str] = &[
     "vendor/nim-leveldbstatic/libleveldb.so",
 ];
 
-/// List of build directories to clean when architecture mismatch is detected
-static BUILD_DIRECTORIES: &[&str] = &[
-    "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc/build",
-    "vendor/nim-nat-traversal/vendor/libnatpmp-upstream/build",
-    "vendor/nim-circom-compat/vendor/circom-compat-ffi/target",
-    "vendor/nim-leveldbstatic/build",
-    "build",
-    "nimcache/release",
-    "nimcache/debug",
-];
-
 /// Checks if a file is compatible with the current target architecture
 fn is_artifact_compatible(artifact_path: &PathBuf, current_arch: &str) -> bool {
     if !artifact_path.exists() {
@@ -186,58 +175,13 @@ fn check_shared_library_compatibility(lib_path: &PathBuf, current_arch: &str) ->
     true // If we can't check, assume compatible
 }
 
-/// Checks if file info from the `file` command indicates compatibility with current architecture
 fn is_object_file_compatible(file_info: &str, current_arch: &str) -> bool {
-    let is_android_build = current_arch.starts_with("android-");
-    let is_desktop_build = current_arch.starts_with("desktop-");
-
-    // Check for Android ARM64
-    if is_android_build && current_arch.contains("aarch64") {
-        // Incompatible if we find x86-64 architecture (regardless of Android tag)
-        if file_info.contains("x86-64") {
-            return false;
-        }
-        // Compatible if we find ARM aarch64
-        if file_info.contains("ARM aarch64") || file_info.contains("aarch64") {
-            return true;
-        }
-        // If no clear architecture info, assume incompatible for safety
-        return false;
+    if current_arch.contains("aarch64") {
+        return file_info.contains("aarch64");
+    } else if current_arch.contains("x86_64") {
+        return file_info.contains("x86-64");
     }
-    // Check for Android x86_64
-    else if is_android_build && current_arch.contains("x86_64") {
-        // Compatible if we find x86-64 with Android tag
-        if file_info.contains("x86-64") && file_info.contains("Android") {
-            return true;
-        }
-        // Incompatible if we find ARM architecture
-        if file_info.contains("ARM aarch64") || file_info.contains("aarch64") {
-            return false;
-        }
-        // If we find x86-64 without Android tag, it's likely desktop - incompatible
-        if file_info.contains("x86-64") {
-            return false;
-        }
-        // If no clear architecture info, assume incompatible for safety
-        return false;
-    }
-    // Check for desktop builds
-    else if is_desktop_build {
-        // Incompatible if we find Android libraries
-        if file_info.contains("Android") {
-            return false;
-        }
-        // For desktop x86-64 builds
-        if current_arch.contains("x86_64") {
-            return file_info.contains("x86-64");
-        }
-        // For desktop ARM64 builds
-        if current_arch.contains("aarch64") {
-            return file_info.contains("ARM aarch64") || file_info.contains("aarch64");
-        }
-    }
-
-    true // Default to compatible if we can't determine
+    true
 }
 
 /// Checks if all artifacts exist and are compatible with the current architecture
@@ -294,43 +238,24 @@ fn are_all_artifacts_compatible(nim_codex_dir: &PathBuf, current_arch: &str) -> 
 fn clean_all_artifacts(nim_codex_dir: &PathBuf, is_android: bool) {
     println!("cargo:warning=Cleaning build artifacts...");
 
-    // Clean Nim cache to prevent architecture conflicts
-    if let Some(home_dir) = std::env::var_os("HOME") {
-        let nim_cache_path = PathBuf::from(home_dir).join(".cache/nim/libcodex_d");
-        if nim_cache_path.exists() {
-            println!("cargo:warning=Removing Nim cache: {:?}", nim_cache_path);
-            let _ = std::fs::remove_dir_all(&nim_cache_path);
+    // Execute the cleaning script
+    if let Ok(output) = Command::new("./clean_build_artifacts.sh")
+        .arg(nim_codex_dir.as_os_str())
+        .output()
+    {
+        if output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            println!("cargo:warning={}", stdout);
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            println!(
+                "cargo:warning=⚠️ Cleaning script failed: {}\nstdout: {}\nstderr: {}",
+                output.status, stdout, stderr
+            );
         }
-    }
-
-    // Clean build directories
-    for dir in BUILD_DIRECTORIES {
-        let path = nim_codex_dir.join(dir);
-        if path.exists() {
-            println!("cargo:warning=Removing build directory: {}", dir);
-            let _ = std::fs::remove_dir_all(&path);
-        }
-    }
-
-    // Clean any leftover .o files in specific directories
-    let object_file_dirs = [
-        "vendor/nim-nat-traversal/vendor/libnatpmp-upstream",
-        "vendor/nim-nat-traversal/vendor/miniupnp/miniupnpc",
-    ];
-
-    for dir in &object_file_dirs {
-        let dir_path = nim_codex_dir.join(dir);
-        if dir_path.exists() && dir_path.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&dir_path) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.is_file() && path.extension().map_or(false, |ext| ext == "o") {
-                        println!("cargo:warning=Removing object file: {:?}", path.file_name());
-                        let _ = std::fs::remove_file(&path);
-                    }
-                }
-            }
-        }
+    } else {
+        println!("cargo:warning=⚠️ Could not execute clean_build_artifacts.sh");
     }
 
     // Revert Android patches when switching away from Android
