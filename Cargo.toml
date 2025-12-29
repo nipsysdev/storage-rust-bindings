@@ -8,6 +8,7 @@ repository = "https://github.com/nipsysdev/codex-rust-bindings"
 homepage = "https://codex.storage"
 keywords = ["codex", "storage", "p2p", "distributed"]
 categories = ["api-bindings", "network-programming"]
+exclude = ["vendor/nim-codex/*"]
 
 [lib]
 name = "codex_bindings"
