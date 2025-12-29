@@ -51,4 +51,3 @@ tokio = { version = "1", features = ["macros", "io-util", "rt-multi-thread"] }
 default = ["tokio", "static-linking"]
 static-linking = []
 dynamic-linking = []
-android-patches = []
