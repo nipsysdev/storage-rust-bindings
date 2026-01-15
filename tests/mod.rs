@@ -1,4 +1,4 @@
-//! Integration tests for the Codex Rust bindings
+//! Integration tests for the Storage Rust bindings
 //!
 //! Available tests:
 //! - basic_usage: Basic upload/download functionality

@@ -1,6 +1,6 @@
-//! Download operations for Codex
+//! Download operations for Storage
 //!
-//! This module provides comprehensive download functionality for the Codex distributed storage network.
+//! This module provides comprehensive download functionality for the Storage distributed storage network.
 //! It supports both high-level and low-level download operations, streaming downloads, and manifest handling.
 //!
 //! ## High-Level Operations

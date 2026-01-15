@@ -60,7 +60,7 @@ impl From<i32> for CallbackReturn {
 }
 
 /// Callback function type - available from generated bindings
-// The CodexCallback type alias is already available from the generated bindings
+// The StorageCallback type alias is already available from the generated bindings
 
 #[cfg(test)]
 mod tests {

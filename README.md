@@ -1,6 +1,6 @@
-# Codex Rust Bindings
+# Storage Rust Bindings
 
-This repository provides Rust bindings for the Codex library, enabling seamless integration with Rust projects.
+This repository provides Rust bindings for the Storage library, enabling seamless integration with Rust projects.
 
 ## Usage
 
@@ -8,10 +8,10 @@ Include in your Cargo project:
 
 ```toml
 [dependencies]
-codex-bindings = "0.2.0"
+storage-bindings = "0.2.0"
 ```
 
-To learn how to use those bindings, take a look at the [example project](https://github.com/nipsysdev/example-codex-rust-bindings) or the [integration tests](./tests/) directory.
+To learn how to use those bindings, take a look at the [example project](https://github.com/nipsysdev/example-storage-rust-bindings) or the [integration tests](./tests/) directory.
 
 ## Building
 

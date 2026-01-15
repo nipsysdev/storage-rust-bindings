@@ -1,4 +1,4 @@
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use crate::ffi::{c_str_to_string, CallbackReturn};
 use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
@@ -7,7 +7,7 @@ use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
-static LIBCODEX_MUTEX: Mutex<()> = Mutex::new(());
+static LIBSTORAGE_MUTEX: Mutex<()> = Mutex::new(());
 
 static CALLBACK_REGISTRY: LazyLock<Mutex<HashMap<u64, Arc<CallbackContext>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -89,7 +89,7 @@ impl CallbackContext {
                     }
                 };
 
-                *self.result.lock().unwrap() = Some(Err(CodexError::library_error(message)));
+                *self.result.lock().unwrap() = Some(Err(StorageError::library_error(message)));
                 *self.completed.lock().unwrap() = true;
 
                 if let Some(waker) = self.waker.lock().unwrap().take() {
@@ -124,7 +124,7 @@ impl CallbackContext {
         if let Some(result) = self.get_result() {
             result
         } else {
-            Err(CodexError::timeout("callback operation"))
+            Err(StorageError::timeout("callback operation"))
         }
     }
 }
@@ -185,11 +185,11 @@ impl std::future::Future for CallbackFuture {
 
 unsafe impl Send for CallbackFuture {}
 
-pub fn with_libcodex_lock<F, R>(f: F) -> R
+pub fn with_libstorage_lock<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let _lock = LIBCODEX_MUTEX.lock().unwrap();
+    let _lock = LIBSTORAGE_MUTEX.lock().unwrap();
     f()
 }
 
@@ -225,17 +225,6 @@ pub unsafe extern "C" fn c_callback(
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::task::Wake;
-
-    struct TestWaker {
-        woken: AtomicBool,
-    }
-
-    impl Wake for TestWaker {
-        fn wake(self: Arc<Self>) {
-            self.woken.store(true, Ordering::SeqCst);
-        }
-    }
 
     #[test]
     fn test_callback_context_creation() {
@@ -264,12 +253,12 @@ mod tests {
         assert!(result.is_err());
 
         match result {
-            Err(CodexError::LibraryError { message, .. }) => {
+            Err(StorageError::LibraryError { message, .. }) => {
                 assert_eq!(message, "Unknown error");
             }
             other => {
                 assert!(
-                    matches!(other, Err(CodexError::LibraryError { .. })),
+                    matches!(other, Err(StorageError::LibraryError { .. })),
                     "Expected LibraryError with message 'Unknown error', got: {:?}",
                     other
                 );

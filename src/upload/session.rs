@@ -1,16 +1,16 @@
-//! Upload session management for Codex
+//! Upload session management for Storage
 //!
 //! This module provides low-level session management operations for uploads.
 //! These functions handle the lifecycle of upload sessions including initialization,
 //! finalization, and cancellation.
 
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
 use crate::ffi::{
     free_c_string, storage_upload_cancel, storage_upload_finalize, storage_upload_init,
     string_to_c_string,
 };
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use crate::upload::types::UploadOptions;
 use libc::c_void;
 
@@ -21,13 +21,13 @@ use libc::c_void;
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the upload
+/// * `node` - The Storage node to use for the upload
 /// * `options` - Upload configuration options
 ///
 /// # Returns
 ///
 /// A session ID string that identifies this upload session
-pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<String> {
+pub async fn upload_init(node: &StorageNode, options: &UploadOptions) -> Result<String> {
     let node = node.clone();
     let options = options.clone();
 
@@ -45,7 +45,7 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
         let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_filepath = string_to_c_string(filepath_str);
                 let result = storage_upload_init(
@@ -65,7 +65,7 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
         });
 
         if result != 0 {
-            return Err(CodexError::upload_error("Failed to initialize upload"));
+            return Err(StorageError::upload_error("Failed to initialize upload"));
         }
 
         let session_id = future.wait()?;
@@ -81,19 +81,19 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node used for the upload
+/// * `node` - The Storage node used for the upload
 /// * `session_id` - The session ID returned by `upload_init`
 ///
 /// # Returns
 ///
 /// The CID of the uploaded content
-pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<String> {
+pub async fn upload_finalize(node: &StorageNode, session_id: &str) -> Result<String> {
     let node = node.clone();
     let session_id = session_id.to_string();
 
     tokio::task::spawn_blocking(move || {
         if session_id.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "session_id",
                 "Session ID cannot be empty",
             ));
@@ -103,7 +103,7 @@ pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<Strin
 
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
                 let result = storage_upload_finalize(
@@ -120,7 +120,7 @@ pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<Strin
         });
 
         if result != 0 {
-            return Err(CodexError::upload_error("Failed to finalize upload"));
+            return Err(StorageError::upload_error("Failed to finalize upload"));
         }
 
         let cid = future.wait()?;
@@ -136,15 +136,15 @@ pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<Strin
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node used for the upload
+/// * `node` - The Storage node used for the upload
 /// * `session_id` - The session ID returned by `upload_init`
-pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
+pub async fn upload_cancel(node: &StorageNode, session_id: &str) -> Result<()> {
     let node = node.clone();
     let session_id = session_id.to_string();
 
     tokio::task::spawn_blocking(move || {
         if session_id.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "session_id",
                 "Session ID cannot be empty",
             ));
@@ -154,7 +154,7 @@ pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
 
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
                 let result = storage_upload_cancel(
@@ -171,7 +171,7 @@ pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
         });
 
         if result != 0 {
-            return Err(CodexError::upload_error("Failed to cancel upload"));
+            return Err(StorageError::upload_error("Failed to cancel upload"));
         }
 
         future.wait()?;

@@ -1,13 +1,13 @@
-//! Chunk download operations for Codex
+//! Chunk download operations for Storage
 //!
 //! This module provides functionality for downloading individual chunks of data
-//! from the Codex network. Chunks are the basic unit of data transfer
+//! from the Storage network. Chunks are the basic unit of data transfer
 //! and can be downloaded individually or as part of a larger download.
 
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
 use crate::ffi::{free_c_string, storage_download_chunk, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 use std::sync::{Arc, Mutex};
 
@@ -19,7 +19,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cid` - The content ID of the chunk to download
 ///
 /// # Returns
@@ -31,13 +31,16 @@ use std::sync::{Arc, Mutex};
 /// Returns an error if:
 /// - The CID is empty
 /// - The chunk download fails
-pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
+pub async fn download_chunk(node: &StorageNode, cid: &str) -> Result<Vec<u8>> {
     let node = node.clone();
     let cid = cid.to_string();
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let chunk_data = Arc::new(Mutex::new(Vec::<u8>::new()));
@@ -55,7 +58,7 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
 
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             let ctx = node.ctx();
             let c_cid = string_to_c_string(&cid);
             let result =
@@ -67,7 +70,7 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
         });
 
         if result != 0 {
-            return Err(CodexError::download_error("Failed to download chunk"));
+            return Err(StorageError::download_error("Failed to download chunk"));
         }
 
         future.wait()?;
@@ -86,7 +89,7 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cids` - A vector of content IDs to download
 ///
 /// # Returns
@@ -96,7 +99,7 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
 /// # Errors
 ///
 /// Returns an error if any chunk download fails
-pub async fn download_chunks(node: &CodexNode, cids: Vec<String>) -> Result<Vec<Vec<u8>>> {
+pub async fn download_chunks(node: &StorageNode, cids: Vec<String>) -> Result<Vec<Vec<u8>>> {
     let node = node.clone();
 
     let futures: Vec<_> = cids
@@ -115,7 +118,7 @@ pub async fn download_chunks(node: &CodexNode, cids: Vec<String>) -> Result<Vec<
         match result {
             Ok(chunk) => chunks.push(chunk),
             Err((index, e)) => {
-                return Err(CodexError::download_error(format!(
+                return Err(StorageError::download_error(format!(
                     "Failed to download chunk {}: {}",
                     index, e
                 )));
@@ -134,7 +137,7 @@ pub async fn download_chunks(node: &CodexNode, cids: Vec<String>) -> Result<Vec<
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cid` - The content ID of the chunk to download
 /// * `progress_callback` - Callback function called with chunk data
 ///
@@ -148,7 +151,7 @@ pub async fn download_chunks(node: &CodexNode, cids: Vec<String>) -> Result<Vec<
 /// - The CID is empty
 /// - The chunk download fails
 pub async fn download_chunk_with_progress<F>(
-    node: &CodexNode,
+    node: &StorageNode,
     cid: &str,
     progress_callback: F,
 ) -> Result<()>
@@ -161,7 +164,10 @@ where
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let future = CallbackFuture::new();
@@ -175,7 +181,7 @@ where
 
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             let ctx = node.ctx();
             let c_cid = string_to_c_string(&cid);
             let result =
@@ -187,7 +193,7 @@ where
         });
 
         if result != 0 {
-            return Err(CodexError::download_error("Failed to download chunk"));
+            return Err(StorageError::download_error("Failed to download chunk"));
         }
 
         future.wait()?;

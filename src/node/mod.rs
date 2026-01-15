@@ -1,10 +1,10 @@
-//! Node management for Codex
+//! Node management for Storage
 //!
 //! This module provides functionality for creating, configuring, starting,
-//! stopping, and destroying Codex nodes.
+//! stopping, and destroying Storage nodes.
 
 pub mod config;
 pub mod lifecycle;
 
-pub use config::{CodexConfig, LogFormat, LogLevel, RepoKind};
-pub use lifecycle::CodexNode;
+pub use config::{LogFormat, LogLevel, RepoKind, StorageConfig};
+pub use lifecycle::StorageNode;

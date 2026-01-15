@@ -1,10 +1,10 @@
-//! Node configuration structures for Codex
+//! Node configuration structures for Storage
 
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Log level for the Codex node
+/// Log level for the Storage node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
@@ -37,7 +37,7 @@ impl std::fmt::Display for LogLevel {
     }
 }
 
-/// Log format for the Codex node
+/// Log format for the Storage node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
@@ -89,9 +89,9 @@ impl std::fmt::Display for RepoKind {
     }
 }
 
-/// Configuration for a Codex node
+/// Configuration for a Storage node
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CodexConfig {
+pub struct StorageConfig {
     /// Log level (default: INFO)
     #[serde(rename = "log-level", default, skip_serializing_if = "Option::is_none")]
     pub log_level: Option<LogLevel>,
@@ -124,7 +124,7 @@ pub struct CodexConfig {
     )]
     pub metrics_port: Option<u16>,
 
-    /// The directory where codex will store configuration and data
+    /// The directory where storage will store configuration and data
     #[serde(rename = "data-dir", default, skip_serializing_if = "Option::is_none")]
     pub data_dir: Option<PathBuf>,
 
@@ -172,7 +172,7 @@ pub struct CodexConfig {
     )]
     pub num_threads: Option<u32>,
 
-    /// Node agent string which is used as identifier in network (default: "Codex")
+    /// Node agent string which is used as identifier in network (default: "Storage")
     #[serde(
         rename = "agent-string",
         default,
@@ -225,7 +225,7 @@ pub struct CodexConfig {
     pub log_file: Option<PathBuf>,
 }
 
-impl Default for CodexConfig {
+impl Default for StorageConfig {
     fn default() -> Self {
         Self {
             log_level: Some(LogLevel::Info),
@@ -241,7 +241,7 @@ impl Default for CodexConfig {
             bootstrap_nodes: vec![],
             max_peers: Some(160),
             num_threads: Some(0),
-            agent_string: Some("Codex".to_string()),
+            agent_string: Some("Storage".to_string()),
             repo_kind: Some(RepoKind::Fs),
             storage_quota: Some(20 * 1024 * 1024 * 1024), // 20 GiB
             block_ttl: Some(30 * 24 * 60 * 60),           // 30 days in seconds
@@ -254,7 +254,7 @@ impl Default for CodexConfig {
     }
 }
 
-impl CodexConfig {
+impl StorageConfig {
     /// Create a new configuration with minimal values (compatible with C library)
     pub fn new() -> Self {
         Self {
@@ -428,12 +428,12 @@ impl CodexConfig {
 
     /// Convert the configuration to a JSON string
     pub fn to_json(&self) -> Result<String> {
-        serde_json::to_string(self).map_err(CodexError::from)
+        serde_json::to_string(self).map_err(StorageError::from)
     }
 
     /// Create a configuration from a JSON string
     pub fn from_json(json: &str) -> Result<Self> {
-        serde_json::from_str(json).map_err(CodexError::from)
+        serde_json::from_str(json).map_err(StorageError::from)
     }
 }
 
@@ -443,7 +443,7 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let config = CodexConfig::default();
+        let config = StorageConfig::default();
         assert_eq!(config.log_level, Some(LogLevel::Info));
         assert_eq!(config.log_format, Some(LogFormat::Auto));
         assert_eq!(config.metrics_enabled, Some(false));
@@ -452,15 +452,15 @@ mod tests {
 
     #[test]
     fn test_config_builder() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .log_level(LogLevel::Debug)
-            .data_dir("/tmp/codex")
+            .data_dir("/tmp/storage")
             .storage_quota(1024 * 1024) // 1 MB
             .max_peers(100)
             .repo_kind(RepoKind::Sqlite);
 
         assert_eq!(config.log_level, Some(LogLevel::Debug));
-        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/codex")));
+        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/storage")));
         assert_eq!(config.storage_quota, Some(1024 * 1024));
         assert_eq!(config.max_peers, Some(100));
         assert_eq!(config.repo_kind, Some(RepoKind::Sqlite));
@@ -468,7 +468,7 @@ mod tests {
 
     #[test]
     fn test_json_serialization_minimal_config() {
-        let config = CodexConfig::new();
+        let config = StorageConfig::new();
         let json_str = config.to_json().expect("Failed to serialize to JSON");
 
         // Verify the JSON is valid
@@ -483,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_json_serialization_partial_config() {
-        let config = CodexConfig::new().log_level(LogLevel::Debug);
+        let config = StorageConfig::new().log_level(LogLevel::Debug);
         let json_str = config.to_json().expect("Failed to serialize to JSON");
 
         // Verify the JSON is valid
@@ -496,9 +496,9 @@ mod tests {
 
     #[test]
     fn test_json_serialization_full_config() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .log_level(LogLevel::Error)
-            .data_dir("/tmp/codex")
+            .data_dir("/tmp/storage")
             .storage_quota(1024 * 1024)
             .max_peers(50)
             .add_listen_addr("/ip4/127.0.0.1/tcp/8080")
@@ -512,7 +512,7 @@ mod tests {
 
         // Full config
         assert_eq!(parsed["log-level"], "error");
-        assert_eq!(parsed["data-dir"], "/tmp/codex");
+        assert_eq!(parsed["data-dir"], "/tmp/storage");
         assert_eq!(parsed["storage-quota"], 1048576);
         assert_eq!(parsed["max-peers"], 50);
         assert!(parsed["listen-addrs"].is_array());
@@ -522,7 +522,7 @@ mod tests {
     #[test]
     fn test_json_deserialization_minimal() {
         let json_str = r#"{"log-level":"info"}"#;
-        let config = CodexConfig::from_json(json_str).expect("Failed to deserialize from JSON");
+        let config = StorageConfig::from_json(json_str).expect("Failed to deserialize from JSON");
 
         // Minimal JSON
         assert_eq!(config.log_level, Some(LogLevel::Info));
@@ -533,7 +533,7 @@ mod tests {
     #[test]
     fn test_json_deserialization_with_empty_vectors() {
         let json_str = r#"{"log-level":"debug","listen-addrs":[],"bootstrap-node":[]}"#;
-        let config = CodexConfig::from_json(json_str).expect("Failed to deserialize from JSON");
+        let config = StorageConfig::from_json(json_str).expect("Failed to deserialize from JSON");
 
         // JSON with empty vectors
         assert_eq!(config.log_level, Some(LogLevel::Debug));
@@ -549,7 +549,7 @@ mod tests {
             "metrics":true,
             "metrics-address":"192.168.1.100",
             "metrics-port":9000,
-            "data-dir":"/tmp/codex",
+            "data-dir":"/tmp/storage",
             "listen-addrs":["/ip4/127.0.0.1/tcp/8080"],
             "nat":"any",
             "disc-port":8090,
@@ -564,10 +564,10 @@ mod tests {
             "block-mn":500,
             "block-retries":1000,
             "cache-size":1048576,
-            "log-file":"/var/log/codex.log"
+            "log-file":"/var/log/storage.log"
         }"#;
 
-        let config = CodexConfig::from_json(json_str).expect("Failed to deserialize from JSON");
+        let config = StorageConfig::from_json(json_str).expect("Failed to deserialize from JSON");
 
         // Full JSON
         assert_eq!(config.log_level, Some(LogLevel::Error));
@@ -575,7 +575,7 @@ mod tests {
         assert_eq!(config.metrics_enabled, Some(true));
         assert_eq!(config.metrics_address, Some("192.168.1.100".to_string()));
         assert_eq!(config.metrics_port, Some(9000));
-        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/codex")));
+        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/storage")));
         assert_eq!(config.listen_addrs, vec!["/ip4/127.0.0.1/tcp/8080"]);
         assert_eq!(config.nat, Some("any".to_string()));
         assert_eq!(config.discovery_port, Some(8090));
@@ -590,7 +590,7 @@ mod tests {
         assert_eq!(config.block_maintenance_number_of_blocks, Some(500));
         assert_eq!(config.block_retries, Some(1000));
         assert_eq!(config.cache_size, Some(1048576));
-        assert_eq!(config.log_file, Some(PathBuf::from("/var/log/codex.log")));
+        assert_eq!(config.log_file, Some(PathBuf::from("/var/log/storage.log")));
     }
 
     #[test]
@@ -616,7 +616,7 @@ mod tests {
 
     #[test]
     fn test_listen_addrs_builder() {
-        let config = CodexConfig::new().listen_addrs(vec![
+        let config = StorageConfig::new().listen_addrs(vec![
             "/ip4/127.0.0.1/tcp/8080".to_string(),
             "/ip4/0.0.0.0/tcp/8080".to_string(),
         ]);
@@ -628,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_add_listen_addr_builder() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .add_listen_addr("/ip4/127.0.0.1/tcp/8080")
             .add_listen_addr("/ip4/0.0.0.0/tcp/8080");
 
@@ -639,13 +639,13 @@ mod tests {
 
     #[test]
     fn test_log_format_builder() {
-        let config = CodexConfig::new().log_format(LogFormat::Json);
+        let config = StorageConfig::new().log_format(LogFormat::Json);
         assert_eq!(config.log_format, Some(LogFormat::Json));
     }
 
     #[test]
     fn test_metrics_builder() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .enable_metrics(true)
             .metrics_address("192.168.1.100")
             .metrics_port(9000);
@@ -657,13 +657,13 @@ mod tests {
 
     #[test]
     fn test_nat_builder() {
-        let config = CodexConfig::new().nat("any");
+        let config = StorageConfig::new().nat("any");
         assert_eq!(config.nat, Some("any".to_string()));
     }
 
     #[test]
     fn test_net_priv_key_file_builder() {
-        let config = CodexConfig::new().net_priv_key_file("/path/to/key");
+        let config = StorageConfig::new().net_priv_key_file("/path/to/key");
         assert_eq!(
             config.net_priv_key_file,
             Some(PathBuf::from("/path/to/key"))
@@ -672,19 +672,19 @@ mod tests {
 
     #[test]
     fn test_num_threads_builder() {
-        let config = CodexConfig::new().num_threads(4);
+        let config = StorageConfig::new().num_threads(4);
         assert_eq!(config.num_threads, Some(4));
     }
 
     #[test]
     fn test_agent_string_builder() {
-        let config = CodexConfig::new().agent_string("CustomAgent/1.0");
+        let config = StorageConfig::new().agent_string("CustomAgent/1.0");
         assert_eq!(config.agent_string, Some("CustomAgent/1.0".to_string()));
     }
 
     #[test]
     fn test_block_config_builders() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .block_ttl(86400) // 1 day
             .block_maintenance_interval(600) // 10 minutes
             .block_maintenance_number_of_blocks(500)
@@ -698,22 +698,22 @@ mod tests {
 
     #[test]
     fn test_cache_size_builder() {
-        let config = CodexConfig::new().cache_size(1024 * 1024); // 1 MB
+        let config = StorageConfig::new().cache_size(1024 * 1024); // 1 MB
         assert_eq!(config.cache_size, Some(1024 * 1024));
     }
 
     #[test]
     fn test_log_file_builder() {
-        let config = CodexConfig::new().log_file("/var/log/codex.log");
-        assert_eq!(config.log_file, Some(PathBuf::from("/var/log/codex.log")));
+        let config = StorageConfig::new().log_file("/var/log/storage.log");
+        assert_eq!(config.log_file, Some(PathBuf::from("/var/log/storage.log")));
     }
 
     #[test]
     fn test_comprehensive_builder() {
-        let config = CodexConfig::new()
+        let config = StorageConfig::new()
             .log_level(LogLevel::Debug)
             .log_format(LogFormat::Json)
-            .data_dir("/tmp/codex")
+            .data_dir("/tmp/storage")
             .listen_addrs(vec!["/ip4/127.0.0.1/tcp/8080".to_string()])
             .enable_metrics(true)
             .metrics_address("127.0.0.1")
@@ -729,7 +729,7 @@ mod tests {
 
         assert_eq!(config.log_level, Some(LogLevel::Debug));
         assert_eq!(config.log_format, Some(LogFormat::Json));
-        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/codex")));
+        assert_eq!(config.data_dir, Some(PathBuf::from("/tmp/storage")));
         assert_eq!(config.listen_addrs.len(), 1);
         assert_eq!(config.listen_addrs[0], "/ip4/127.0.0.1/tcp/8080");
         assert_eq!(config.metrics_enabled, Some(true));

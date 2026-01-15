@@ -1,17 +1,17 @@
-//! Two-node networking integration test for the Codex Rust bindings
+//! Two-node networking integration test for the Storage Rust bindings
 //!
-//! This test demonstrates how to create and connect two Codex nodes:
+//! This test demonstrates how to create and connect two Storage nodes:
 //! - Create two separate nodes
 //! - Configure them to discover each other
 //! - Connect the nodes
 //! - Transfer data between nodes
 
-use codex_bindings::{
-    connect, download_stream, upload_file, CodexConfig, CodexNode, DownloadStreamOptions, LogLevel,
-    UploadOptions,
-};
 use std::fs::File;
 use std::io::Write;
+use storage_bindings::{
+    connect, download_stream, upload_file, DownloadStreamOptions, LogLevel, StorageConfig,
+    StorageNode, UploadOptions,
+};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -19,7 +19,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();
 
-    println!("Codex Rust Bindings - Two-Node Network Test");
+    println!("Storage Rust Bindings - Two-Node Network Test");
     println!("============================================");
 
     // Create temporary directories for our test
@@ -43,7 +43,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure node1 to listen on a specific port
     println!("\n=== Creating Node 1 ===");
-    let node1_config = CodexConfig::new()
+    let node1_config = StorageConfig::new()
         .log_level(LogLevel::Info)
         .data_dir(&node1_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
@@ -54,7 +54,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
             "/ip4/0.0.0.0/tcp/0".to_string(),
         ]);
 
-    let mut node1 = CodexNode::new(node1_config)?;
+    let mut node1 = StorageNode::new(node1_config)?;
     node1.start()?;
 
     let node1_peer_id = node1.peer_id()?;
@@ -68,7 +68,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Configure node2 with different ports and bootstrap to node1
     println!("\n=== Creating Node 2 ===");
-    let mut node2_config = CodexConfig::new()
+    let mut node2_config = StorageConfig::new()
         .log_level(LogLevel::Info)
         .data_dir(&node2_dir)
         .storage_quota(100 * 1024 * 1024) // 100 MB
@@ -82,7 +82,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
         "/ip4/0.0.0.0/tcp/0".to_string(),
     ];
 
-    let mut node2 = CodexNode::new(node2_config)?;
+    let mut node2 = StorageNode::new(node2_config)?;
     node2.start()?;
 
     let node2_peer_id = node2.peer_id()?;
@@ -94,7 +94,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get debug information for both nodes
     println!("\n=== Node Debug Information ===");
-    let debug2 = codex_bindings::debug(&node2).await?;
+    let debug2 = storage_bindings::debug(&node2).await?;
 
     println!("Node 1 debug info:");
     println!("  Peer ID: {}", debug1.peer_id());
@@ -157,7 +157,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Check if the content exists on node1
     println!("\n=== Checking Content on Node 1 ===");
-    let exists_on_node1 = codex_bindings::exists(&node1, &upload_result.cid).await?;
+    let exists_on_node1 = storage_bindings::exists(&node1, &upload_result.cid).await?;
     assert!(exists_on_node1, "Content should exist on node1");
     println!("Content exists on node1: {}", exists_on_node1);
 
@@ -168,7 +168,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     let fetch_timeout = tokio::time::Duration::from_secs(30);
     let fetch_result = tokio::time::timeout(
         fetch_timeout,
-        codex_bindings::fetch(&node2, &upload_result.cid),
+        storage_bindings::fetch(&node2, &upload_result.cid),
     )
     .await;
 
@@ -192,7 +192,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Check if content exists on node2 after fetch attempt
-    let exists_on_node2 = codex_bindings::exists(&node2, &upload_result.cid).await?;
+    let exists_on_node2 = storage_bindings::exists(&node2, &upload_result.cid).await?;
     println!("Content exists on node2: {}", exists_on_node2);
 
     // Download the file from node2 (if it has the content)
@@ -230,8 +230,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get final debug information
     println!("\n=== Final Node Status ===");
-    let final_debug1 = codex_bindings::debug(&node1).await?;
-    let final_debug2 = codex_bindings::debug(&node2).await?;
+    let final_debug1 = storage_bindings::debug(&node1).await?;
+    let final_debug2 = storage_bindings::debug(&node2).await?;
 
     println!("Node 1 final status:");
     println!("  Peer ID: {}", final_debug1.peer_id());
@@ -253,8 +253,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get storage information
     println!("\n=== Storage Information ===");
-    let space1 = codex_bindings::space(&node1).await?;
-    let space2 = codex_bindings::space(&node2).await?;
+    let space1 = storage_bindings::space(&node1).await?;
+    let space2 = storage_bindings::space(&node2).await?;
 
     println!("Node 1 storage:");
     println!("  Used: {} bytes", space1.quota_used_bytes);
@@ -274,8 +274,8 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     // List manifests on both nodes
     println!("\n=== Manifests ===");
-    let manifests1 = codex_bindings::manifests(&node1).await?;
-    let manifests2 = codex_bindings::manifests(&node2).await?;
+    let manifests1 = storage_bindings::manifests(&node1).await?;
+    let manifests2 = storage_bindings::manifests(&node2).await?;
 
     println!("Node 1 manifests: {}", manifests1.len());
     for manifest in &manifests1 {

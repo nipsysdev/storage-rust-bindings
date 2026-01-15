@@ -8,7 +8,7 @@ pub fn download_and_extract(
     println!("Downloading from: {}", url);
 
     let client = reqwest::blocking::Client::builder()
-        .user_agent("codex-rust-bindings")
+        .user_agent("storage-rust-bindings")
         .timeout(std::time::Duration::from_secs(900)) // 15 minutes timeout for download
         .build()?;
 

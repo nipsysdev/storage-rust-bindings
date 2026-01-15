@@ -1,24 +1,24 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
 use crate::ffi::{free_c_string, storage_connect, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use libc::{c_char, c_void};
 
-pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String]) -> Result<()> {
+pub async fn connect(node: &StorageNode, peer_id: &str, peer_addresses: &[String]) -> Result<()> {
     let node = node.clone();
     let peer_id = peer_id.to_string();
     let peer_addresses = peer_addresses.to_vec();
 
     tokio::task::spawn_blocking(move || {
         if peer_id.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "peer_id",
                 "Peer ID cannot be empty",
             ));
         }
 
         if peer_addresses.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "peer_addresses",
                 "At least one peer address must be provided",
             ));
@@ -33,7 +33,7 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
             .map(|addr| string_to_c_string(addr))
             .collect();
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 storage_connect(
                     ctx as *mut _,
@@ -54,7 +54,7 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
         }
 
         if result != 0 {
-            return Err(CodexError::p2p_error("Failed to connect to peer"));
+            return Err(StorageError::p2p_error("Failed to connect to peer"));
         }
 
         future.wait()?;
@@ -65,7 +65,7 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
 }
 
 pub async fn connect_to_multiple(
-    node: &CodexNode,
+    node: &StorageNode,
     peer_connections: Vec<(String, Vec<String>)>,
 ) -> Vec<Result<()>> {
     let mut results = Vec::with_capacity(peer_connections.len());
@@ -80,21 +80,21 @@ pub async fn connect_to_multiple(
 
 pub fn validate_peer_id(peer_id: &str) -> Result<()> {
     if peer_id.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "peer_id",
             "Peer ID cannot be empty",
         ));
     }
 
     if peer_id.len() < 10 {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "peer_id",
             "Peer ID is too short",
         ));
     }
 
     if peer_id.len() > 100 {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "peer_id",
             "Peer ID is too long",
         ));
@@ -107,7 +107,7 @@ pub fn validate_peer_id(peer_id: &str) -> Result<()> {
         .any(|&prefix| peer_id.starts_with(prefix));
 
     if !has_valid_prefix {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "peer_id",
             "Peer ID has invalid format or prefix",
         ));
@@ -118,7 +118,7 @@ pub fn validate_peer_id(peer_id: &str) -> Result<()> {
 
 pub fn validate_addresses(addresses: &[String]) -> Result<()> {
     if addresses.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "addresses",
             "At least one address must be provided",
         ));
@@ -126,14 +126,14 @@ pub fn validate_addresses(addresses: &[String]) -> Result<()> {
 
     for (i, address) in addresses.iter().enumerate() {
         if address.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 &format!("addresses[{}]", i),
                 "Address cannot be empty",
             ));
         }
 
         if !address.starts_with('/') {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 &format!("addresses[{}]", i),
                 "Address must start with '/'",
             ));
@@ -149,7 +149,7 @@ pub fn validate_addresses(addresses: &[String]) -> Result<()> {
             .any(|&protocol| address.contains(protocol));
 
         if !has_valid_protocol {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 &format!("addresses[{}]", i),
                 "Address contains invalid protocol",
             ));

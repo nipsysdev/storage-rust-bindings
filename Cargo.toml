@@ -1,12 +1,12 @@
 [package]
-name = "codex-bindings"
+name = "storage-bindings"
 version = "0.2.0"
 edition = "2021"
-description = "Rust bindings for Codex, the Decentralized Durability Engine"
+description = "Rust bindings for Storage, the Decentralized Durability Engine"
 license = "MIT"
-repository = "https://github.com/nipsysdev/codex-rust-bindings"
-homepage = "https://codex.storage"
-keywords = ["codex", "storage", "p2p", "distributed"]
+repository = "https://github.com/nipsysdev/storage-rust-bindings"
+homepage = "https://logos.co/tech-stack"
+keywords = ["storage", "p2p", "distributed"]
 categories = ["api-bindings", "network-programming"]
 
 # Prebuilt binary version pinning
@@ -17,7 +17,7 @@ categories = ["api-bindings", "network-programming"]
 libstorage = "master-50bd183"
 
 [lib]
-name = "codex_bindings"
+name = "storage_bindings"
 crate-type = ["cdylib", "rlib", "staticlib"]
 
 [dependencies]

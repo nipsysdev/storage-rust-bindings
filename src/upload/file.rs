@@ -1,13 +1,13 @@
-//! High-level file upload operations for Codex
+//! High-level file upload operations for Storage
 //!
 //! This module provides convenient high-level functions for uploading files
-//! and readers to the Codex network. These functions handle the complete
+//! and readers to the Storage network. These functions handle the complete
 //! upload lifecycle including session management and chunking.
 
 use crate::callback::{c_callback, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use crate::ffi::{free_c_string, storage_upload_file, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use crate::upload::types::{UploadOptions, UploadProgress, UploadResult};
 use libc::c_void;
 use std::io::Read;
@@ -15,13 +15,13 @@ use std::path::Path;
 
 /// Upload a file from the filesystem
 ///
-/// High-level function that uploads a file from the filesystem to the Codex network.
+/// High-level function that uploads a file from the filesystem to the Storage network.
 /// This function handles the complete upload process including file validation,
 /// session creation, and progress tracking.
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the upload
+/// * `node` - The Storage node to use for the upload
 /// * `options` - Upload options including file path and configuration
 ///
 /// # Returns
@@ -34,13 +34,13 @@ use std::path::Path;
 /// - No file path is specified in options
 /// - The file doesn't exist
 /// - The upload fails for any reason
-pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<UploadResult> {
+pub async fn upload_file(node: &StorageNode, options: UploadOptions) -> Result<UploadResult> {
     let node = node.clone();
     let options = options.clone();
 
     tokio::task::spawn_blocking(move || {
         if options.filepath.is_none() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "filepath",
                 "File path must be specified for file upload",
             ));
@@ -49,7 +49,7 @@ pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<Upl
         let filepath = options.filepath.as_ref().unwrap();
 
         if !Path::new(filepath).exists() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "filepath",
                 format!("File does not exist: {}", filepath.display()),
             ));
@@ -79,7 +79,7 @@ pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<Upl
 
         if result != 0 {
             let _ = upload_cancel_sync(&node, &session_id);
-            return Err(CodexError::library_error("Failed to upload file"));
+            return Err(StorageError::library_error("Failed to upload file"));
         }
 
         let cid = future.wait()?;
@@ -101,7 +101,7 @@ pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<Upl
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the upload
+/// * `node` - The Storage node to use for the upload
 /// * `options` - Upload options including chunk size and progress callbacks
 /// * `reader` - Any type that implements Read
 ///
@@ -115,7 +115,7 @@ pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<Upl
 /// - The reader fails
 /// - The upload fails for any reason
 pub async fn upload_reader<R>(
-    node: &CodexNode,
+    node: &StorageNode,
     options: UploadOptions,
     reader: R,
 ) -> Result<UploadResult>
@@ -158,7 +158,7 @@ where
                 }
                 Err(e) => {
                     let _ = upload_cancel_sync(&node, &session_id);
-                    return Err(CodexError::from(e));
+                    return Err(StorageError::from(e));
                 }
             }
         }
@@ -176,7 +176,7 @@ where
 }
 
 /// Synchronous version of upload_init for internal use
-fn upload_init_sync(node: &CodexNode, options: &UploadOptions) -> Result<String> {
+fn upload_init_sync(node: &StorageNode, options: &UploadOptions) -> Result<String> {
     options.validate()?;
 
     let future = CallbackFuture::new();
@@ -190,7 +190,7 @@ fn upload_init_sync(node: &CodexNode, options: &UploadOptions) -> Result<String>
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
     let context_ptr = future.context_ptr() as *mut c_void;
 
-    let result = crate::callback::with_libcodex_lock(|| unsafe {
+    let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_filepath = crate::ffi::string_to_c_string(filepath_str);
             let result = crate::ffi::storage_upload_init(
@@ -210,7 +210,7 @@ fn upload_init_sync(node: &CodexNode, options: &UploadOptions) -> Result<String>
     });
 
     if result != 0 {
-        return Err(CodexError::upload_error("Failed to initialize upload"));
+        return Err(StorageError::upload_error("Failed to initialize upload"));
     }
 
     let session_id = future.wait()?;
@@ -218,16 +218,16 @@ fn upload_init_sync(node: &CodexNode, options: &UploadOptions) -> Result<String>
 }
 
 /// Synchronous version of upload_chunk for internal use
-fn upload_chunk_sync(node: &CodexNode, session_id: &str, chunk: &[u8]) -> Result<()> {
+fn upload_chunk_sync(node: &StorageNode, session_id: &str, chunk: &[u8]) -> Result<()> {
     if session_id.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "session_id",
             "Session ID cannot be empty",
         ));
     }
 
     if chunk.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "chunk",
             "Chunk cannot be empty",
         ));
@@ -239,7 +239,7 @@ fn upload_chunk_sync(node: &CodexNode, session_id: &str, chunk: &[u8]) -> Result
     let chunk_len = chunk.len();
     let context_ptr = future.context_ptr() as *mut c_void;
 
-    let result = crate::callback::with_libcodex_lock(|| unsafe {
+    let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
             let result = crate::ffi::storage_upload_chunk(
@@ -258,7 +258,7 @@ fn upload_chunk_sync(node: &CodexNode, session_id: &str, chunk: &[u8]) -> Result
     });
 
     if result != 0 {
-        return Err(CodexError::upload_error("Failed to upload chunk"));
+        return Err(StorageError::upload_error("Failed to upload chunk"));
     }
 
     future.wait()?;
@@ -266,9 +266,9 @@ fn upload_chunk_sync(node: &CodexNode, session_id: &str, chunk: &[u8]) -> Result
 }
 
 /// Synchronous version of upload_finalize for internal use
-fn upload_finalize_sync(node: &CodexNode, session_id: &str) -> Result<String> {
+fn upload_finalize_sync(node: &StorageNode, session_id: &str) -> Result<String> {
     if session_id.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "session_id",
             "Session ID cannot be empty",
         ));
@@ -278,7 +278,7 @@ fn upload_finalize_sync(node: &CodexNode, session_id: &str) -> Result<String> {
 
     let context_ptr = future.context_ptr() as *mut c_void;
 
-    let result = crate::callback::with_libcodex_lock(|| unsafe {
+    let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
             let result = crate::ffi::storage_upload_finalize(
@@ -295,7 +295,7 @@ fn upload_finalize_sync(node: &CodexNode, session_id: &str) -> Result<String> {
     });
 
     if result != 0 {
-        return Err(CodexError::upload_error("Failed to finalize upload"));
+        return Err(StorageError::upload_error("Failed to finalize upload"));
     }
 
     let cid = future.wait()?;
@@ -303,9 +303,9 @@ fn upload_finalize_sync(node: &CodexNode, session_id: &str) -> Result<String> {
 }
 
 /// Synchronous version of upload_cancel for internal use
-fn upload_cancel_sync(node: &CodexNode, session_id: &str) -> Result<()> {
+fn upload_cancel_sync(node: &StorageNode, session_id: &str) -> Result<()> {
     if session_id.is_empty() {
-        return Err(CodexError::invalid_parameter(
+        return Err(StorageError::invalid_parameter(
             "session_id",
             "Session ID cannot be empty",
         ));
@@ -315,7 +315,7 @@ fn upload_cancel_sync(node: &CodexNode, session_id: &str) -> Result<()> {
 
     let context_ptr = future.context_ptr() as *mut c_void;
 
-    let result = crate::callback::with_libcodex_lock(|| unsafe {
+    let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
             let result = crate::ffi::storage_upload_cancel(
@@ -332,7 +332,7 @@ fn upload_cancel_sync(node: &CodexNode, session_id: &str) -> Result<()> {
     });
 
     if result != 0 {
-        return Err(CodexError::upload_error("Failed to cancel upload"));
+        return Err(StorageError::upload_error("Failed to cancel upload"));
     }
 
     future.wait()?;

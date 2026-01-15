@@ -17,9 +17,9 @@ pub use download::{
     DownloadOptions, DownloadProgress, DownloadResult, DownloadStreamOptions,
 };
 
-pub use error::{CodexError, Result};
+pub use error::{Result, StorageError};
 
-pub use node::{CodexConfig, CodexNode, LogFormat, LogLevel};
+pub use node::{LogFormat, LogLevel, StorageConfig, StorageNode};
 
 pub use p2p::{
     connect, connect_to_multiple, get_peer_id, get_peer_info, validate_addresses, validate_peer_id,

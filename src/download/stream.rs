@@ -1,28 +1,28 @@
-//! Stream download operations for Codex
+//! Stream download operations for Storage
 //!
-//! This module provides high-level streaming download functionality for the Codex network.
+//! This module provides high-level streaming download functionality for the Storage network.
 //! It supports downloading content directly to files, writers, or custom destinations
 //! with progress tracking and verification.
 
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::download::session::download_init_sync;
 use crate::download::types::{DownloadOptions, DownloadResult, DownloadStreamOptions};
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use crate::ffi::{free_c_string, storage_download_stream, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
 /// Download content as a stream to various destinations
 ///
-/// High-level function that downloads content from the Codex network and streams it
+/// High-level function that downloads content from the Storage network and streams it
 /// to a file, writer, or custom callback. This function handles the complete download
 /// process including session management, progress tracking, and error handling.
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cid` - The content ID to download
 /// * `options` - Stream download options including destination and configuration
 ///
@@ -37,7 +37,7 @@ use std::sync::{Arc, Mutex};
 /// - The options are invalid
 /// - The download fails for any reason
 pub async fn download_stream(
-    node: &CodexNode,
+    node: &StorageNode,
     cid: &str,
     options: DownloadStreamOptions,
 ) -> Result<DownloadResult> {
@@ -47,7 +47,10 @@ pub async fn download_stream(
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         options.validate()?;
@@ -62,7 +65,7 @@ pub async fn download_stream(
             match std::fs::File::create(filepath) {
                 Ok(file) => Some(Arc::new(Mutex::new(Some(file)))),
                 Err(e) => {
-                    return Err(CodexError::Io(e));
+                    return Err(StorageError::Io(e));
                 }
             }
         } else {
@@ -124,7 +127,7 @@ pub async fn download_stream(
             .and_then(|p| p.to_str())
             .unwrap_or("");
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_cid = string_to_c_string(cid_str);
                 let c_filepath = string_to_c_string(filepath_str);
@@ -149,7 +152,7 @@ pub async fn download_stream(
         });
 
         if result != 0 {
-            return Err(CodexError::download_error("Failed to download stream"));
+            return Err(StorageError::download_error("Failed to download stream"));
         }
 
         future.wait()?;
@@ -194,7 +197,7 @@ pub async fn download_stream(
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cid` - The content ID to download
 /// * `filepath` - The path where the file should be saved
 ///
@@ -206,7 +209,7 @@ pub async fn download_stream(
 ///
 /// Returns an error if the download fails
 pub async fn download_to_file(
-    node: &CodexNode,
+    node: &StorageNode,
     cid: &str,
     filepath: &std::path::Path,
 ) -> Result<DownloadResult> {
@@ -224,7 +227,7 @@ pub async fn download_to_file(
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use for the download
+/// * `node` - The Storage node to use for the download
 /// * `cid` - The content ID to download
 /// * `writer` - Any type that implements Write
 ///
@@ -235,7 +238,11 @@ pub async fn download_to_file(
 /// # Errors
 ///
 /// Returns an error if the download fails
-pub async fn download_to_writer<W>(node: &CodexNode, cid: &str, writer: W) -> Result<DownloadResult>
+pub async fn download_to_writer<W>(
+    node: &StorageNode,
+    cid: &str,
+    writer: W,
+) -> Result<DownloadResult>
 where
     W: Write + Send + 'static,
 {

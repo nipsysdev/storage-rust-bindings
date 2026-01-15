@@ -1,25 +1,28 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
 use crate::ffi::{
     free_c_string, storage_delete, storage_exists, storage_fetch, string_to_c_string,
 };
-use crate::node::lifecycle::CodexNode;
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 
-pub async fn fetch(node: &CodexNode, cid: &str) -> Result<super::types::Manifest> {
+pub async fn fetch(node: &StorageNode, cid: &str) -> Result<super::types::Manifest> {
     let node = node.clone();
     let cid = cid.to_string();
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let future = CallbackFuture::new();
 
         let c_cid = string_to_c_string(&cid);
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 storage_fetch(
                     ctx as *mut _,
@@ -35,7 +38,7 @@ pub async fn fetch(node: &CodexNode, cid: &str) -> Result<super::types::Manifest
         }
 
         if result != 0 {
-            return Err(CodexError::storage_error(
+            return Err(StorageError::storage_error(
                 "fetch",
                 "Failed to fetch manifest",
             ));
@@ -44,27 +47,30 @@ pub async fn fetch(node: &CodexNode, cid: &str) -> Result<super::types::Manifest
         let manifest_json = future.wait()?;
 
         let manifest: super::types::Manifest = serde_json::from_str(&manifest_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse manifest: {}", e)))?;
+            .map_err(|e| StorageError::library_error(format!("Failed to parse manifest: {}", e)))?;
 
         Ok(manifest)
     })
     .await?
 }
 
-pub async fn delete(node: &CodexNode, cid: &str) -> Result<()> {
+pub async fn delete(node: &StorageNode, cid: &str) -> Result<()> {
     let node = node.clone();
     let cid = cid.to_string();
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let future = CallbackFuture::new();
 
         let c_cid = string_to_c_string(&cid);
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 storage_delete(
                     ctx as *mut _,
@@ -80,7 +86,7 @@ pub async fn delete(node: &CodexNode, cid: &str) -> Result<()> {
         }
 
         if result != 0 {
-            return Err(CodexError::storage_error(
+            return Err(StorageError::storage_error(
                 "delete",
                 "Failed to delete content",
             ));
@@ -93,20 +99,23 @@ pub async fn delete(node: &CodexNode, cid: &str) -> Result<()> {
     .await?
 }
 
-pub async fn exists(node: &CodexNode, cid: &str) -> Result<bool> {
+pub async fn exists(node: &StorageNode, cid: &str) -> Result<bool> {
     let node = node.clone();
     let cid = cid.to_string();
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let future = CallbackFuture::new();
 
         let c_cid = string_to_c_string(&cid);
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 storage_exists(
                     ctx as *mut _,
@@ -122,7 +131,7 @@ pub async fn exists(node: &CodexNode, cid: &str) -> Result<bool> {
         }
 
         if result != 0 {
-            return Err(CodexError::storage_error(
+            return Err(StorageError::storage_error(
                 "exists",
                 "Failed to check if content exists",
             ));
@@ -131,7 +140,7 @@ pub async fn exists(node: &CodexNode, cid: &str) -> Result<bool> {
         let exists_str = future.wait()?;
 
         let exists = exists_str.parse::<bool>().map_err(|e| {
-            CodexError::library_error(format!("Failed to parse exists result: {}", e))
+            StorageError::library_error(format!("Failed to parse exists result: {}", e))
         })?;
 
         Ok(exists)

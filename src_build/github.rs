@@ -24,7 +24,7 @@ pub fn fetch_release(version: &str) -> Result<GitHubRelease, Box<dyn std::error:
     };
 
     let client = reqwest::blocking::Client::builder()
-        .user_agent("codex-rust-bindings")
+        .user_agent("storage-rust-bindings")
         .timeout(std::time::Duration::from_secs(30))
         .build()?;
 
