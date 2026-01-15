@@ -6,7 +6,7 @@
 
 use crate::callback::{c_callback, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_upload_file, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_upload_file, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use crate::upload::types::{UploadOptions, UploadProgress, UploadResult};
 use libc::c_void;
@@ -69,7 +69,7 @@ pub async fn upload_file(node: &CodexNode, options: UploadOptions) -> Result<Upl
             node.with_ctx_locked(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
                 let result =
-                    codex_upload_file(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
+                    storage_upload_file(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
                 free_c_string(c_session_id);
 
@@ -193,7 +193,7 @@ fn upload_init_sync(node: &CodexNode, options: &UploadOptions) -> Result<String>
     let result = crate::callback::with_libcodex_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_filepath = crate::ffi::string_to_c_string(filepath_str);
-            let result = crate::ffi::codex_upload_init(
+            let result = crate::ffi::storage_upload_init(
                 ctx as *mut _,
                 c_filepath,
                 chunk_size,
@@ -242,7 +242,7 @@ fn upload_chunk_sync(node: &CodexNode, session_id: &str, chunk: &[u8]) -> Result
     let result = crate::callback::with_libcodex_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::codex_upload_chunk(
+            let result = crate::ffi::storage_upload_chunk(
                 ctx as *mut _,
                 c_session_id,
                 chunk_ptr,
@@ -281,7 +281,7 @@ fn upload_finalize_sync(node: &CodexNode, session_id: &str) -> Result<String> {
     let result = crate::callback::with_libcodex_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::codex_upload_finalize(
+            let result = crate::ffi::storage_upload_finalize(
                 ctx as *mut _,
                 c_session_id,
                 Some(crate::callback::c_callback),
@@ -318,7 +318,7 @@ fn upload_cancel_sync(node: &CodexNode, session_id: &str) -> Result<()> {
     let result = crate::callback::with_libcodex_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::codex_upload_cancel(
+            let result = crate::ffi::storage_upload_cancel(
                 ctx as *mut _,
                 c_session_id,
                 Some(crate::callback::c_callback),

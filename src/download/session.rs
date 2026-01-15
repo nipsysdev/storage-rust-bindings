@@ -7,7 +7,9 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::download::types::DownloadOptions;
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_download_cancel, codex_download_init, free_c_string, string_to_c_string};
+use crate::ffi::{
+    free_c_string, storage_download_cancel, storage_download_init, string_to_c_string,
+};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 
@@ -52,7 +54,7 @@ pub async fn download_init(node: &CodexNode, cid: &str, options: &DownloadOption
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_cid = string_to_c_string(&cid);
-                let result = codex_download_init(
+                let result = storage_download_init(
                     ctx as *mut _,
                     c_cid,
                     chunk_size,
@@ -113,7 +115,8 @@ pub async fn download_cancel(node: &CodexNode, cid: &str) -> Result<()> {
         let result = with_libcodex_lock(|| unsafe {
             let ctx = node.ctx();
             let c_cid = string_to_c_string(&cid);
-            let result = codex_download_cancel(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+            let result =
+                storage_download_cancel(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
             free_c_string(c_cid);
 
@@ -151,7 +154,7 @@ pub(crate) fn download_init_sync(
     let result = with_libcodex_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_cid = string_to_c_string(cid);
-            let result = codex_download_init(
+            let result = storage_download_init(
                 ctx as *mut _,
                 c_cid,
                 chunk_size,

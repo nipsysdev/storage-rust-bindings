@@ -1,6 +1,6 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_connect, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_connect, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::{c_char, c_void};
 
@@ -35,10 +35,10 @@ pub async fn connect(node: &CodexNode, peer_id: &str, peer_addresses: &[String])
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_connect(
+                storage_connect(
                     ctx as *mut _,
                     c_peer_id,
-                    c_addresses.as_ptr() as *mut *mut c_char,
+                    c_addresses.as_ptr() as *mut *const c_char,
                     c_addresses.len(),
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,

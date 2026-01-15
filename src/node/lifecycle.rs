@@ -1,8 +1,9 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{
-    codex_close, codex_destroy, codex_new, codex_peer_id, codex_repo, codex_revision, codex_spr,
-    codex_start, codex_stop, codex_version, free_c_string, string_to_c_string,
+    free_c_string, storage_close, storage_destroy, storage_new, storage_peer_id, storage_repo,
+    storage_revision, storage_spr, storage_start, storage_stop, storage_version,
+    string_to_c_string,
 };
 use crate::node::config::CodexConfig;
 use libc::c_void;
@@ -34,7 +35,7 @@ impl CodexNode {
             let future = CallbackFuture::new();
 
             let node_ctx = unsafe {
-                let node_ctx = codex_new(
+                let node_ctx = storage_new(
                     c_json_config,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -69,7 +70,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_start(
+            storage_start(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -107,8 +108,9 @@ impl CodexNode {
                 inner.ctx as *mut _
             };
 
-            let result =
-                unsafe { codex_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+            let result = unsafe {
+                storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void)
+            };
 
             if result != 0 {
                 return Err(CodexError::node_error(
@@ -138,7 +140,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_stop(
+            storage_stop(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -175,7 +177,7 @@ impl CodexNode {
             };
 
             let result =
-                unsafe { codex_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+                unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
             if result != 0 {
                 return Err(CodexError::node_error(
@@ -212,7 +214,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_close(
+            storage_close(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -225,7 +227,7 @@ impl CodexNode {
 
         future.wait()?;
 
-        unsafe { codex_destroy(inner.ctx as *mut _, None, ptr::null_mut()) };
+        unsafe { storage_destroy(inner.ctx as *mut _, None, ptr::null_mut()) };
 
         inner.ctx = ptr::null_mut();
         Ok(())
@@ -237,7 +239,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_version(
+            storage_version(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -259,7 +261,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_revision(
+            storage_revision(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -281,7 +283,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_repo(
+            storage_repo(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -303,7 +305,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_spr(
+            storage_spr(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -325,7 +327,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_peer_id(
+            storage_peer_id(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -377,14 +379,14 @@ impl Drop for CodexNode {
             let mut inner = self.inner.lock().unwrap();
             if !inner.ctx.is_null() && inner.started {
                 let _ = unsafe {
-                    codex_stop(inner.ctx as *mut _, None, ptr::null_mut());
+                    storage_stop(inner.ctx as *mut _, None, ptr::null_mut());
                 };
                 inner.started = false;
             }
 
             if !inner.ctx.is_null() {
                 let _ = unsafe {
-                    codex_destroy(inner.ctx as *mut _, None, ptr::null_mut());
+                    storage_destroy(inner.ctx as *mut _, None, ptr::null_mut());
                 };
                 inner.ctx = ptr::null_mut();
             }

@@ -8,30 +8,44 @@ Include in your Cargo project:
 
 ```toml
 [dependencies]
-codex-bindings = "0.1.3"
+codex-bindings = "0.2.0"
 ```
 
-To learn how to use those bindings, take a look at the [example project](https://github.com/nipsysdev/example-codex-rust-bindings) or the [integration tests](./tests/).
+To learn how to use those bindings, take a look at the [example project](https://github.com/nipsysdev/example-codex-rust-bindings) or the [integration tests](./tests/) directory.
 
 ## Building
 
-### Requirements
-
-This crate automatically builds the required libcodex library during compilation, so you don't need to install nim-codex separately. However, you will need:
-
-- **Rust and Cargo**
-- **Git**
-- **Make**
-- **C compiler**
-
 Building will automatically:
 
-1. Clone the nim-codex repository and it's submodules
-2. Build the Nim compiler from source
-3. Build libcodex with the Nim compiler
-4. Generate Rust bindings and compile the crate
+1. Fetch the latest prebuilt libstorage binary for your platform from GitHub
+2. Generate Rust bindings and compile the crate
 
-**Note**: The first build may take 10-20 minutes as it needs to build the Nim compiler from source. Subsequent builds will be much faster.
+**Note**: The first build will download the prebuilt binary (~50MB). Subsequent builds will use the cached version.
+
+### Supported Platforms
+
+- Linux x86_64 (x86_64-unknown-linux-gnu)
+- Linux ARM64 (aarch64-unknown-linux-gnu)
+
+### Libstorage Version Pinning
+
+**Option 1: Cargo.toml metadata**
+
+Add to your `Cargo.toml`:
+
+```toml
+[package.metadata.prebuilt]
+libstorage = "master-60861d6a"
+```
+
+**Option 2: Environment variable (for local overrides)**
+
+```bash
+export LOGOS_STORAGE_VERSION=master-60861d6a
+cargo build
+```
+
+Available versions can be found at: https://github.com/nipsysdev/logos-storage-nim-bin/releases
 
 ### Building from source
 
@@ -41,56 +55,42 @@ cargo build --release
 cargo build
 ```
 
-### Other Cargo Commands
+### Testing
+
+The library includes comprehensive integration tests that demonstrate all major functionality.
+
+#### Running All Tests
 
 ```bash
-# Run all tests
+# Run all tests (unit tests + integration tests)
 cargo test
-
-# Run unit tests
-cargo test-unit
-
-# Run integration tests
-cargo test-integration
-
-# Run doctests
-cargo test-doc
 ```
 
-## Linking Modes
-
-This crate supports two linking modes via Cargo features:
-
-### Static Linking (Default)
+#### Running Specific Tests
 
 ```bash
-cargo build
-# or explicitly
-cargo build --features static-linking
+# Run only unit tests
+cargo test --lib
+
+# Run only integration tests
+cargo test --test basic_usage
+cargo test --test chunk_operations
+cargo test --test debug_operations
+cargo test --test p2p_networking
+cargo test --test storage_management
+cargo test --test two_node_network
+cargo test --test thread_safe_tests
 ```
 
-### Dynamic Linking
+#### Available Integration Tests
 
-```bash
-cargo build --features dynamic-linking
-```
-
-## Android Builds
-
-To build for Android targets, you need to set the Android SDK and NDK environment variables:
-
-```bash
-export ANDROID_SDK_ROOT=/path/to/your/Android/Sdk
-export ANDROID_NDK_HOME=/path/to/your/Android/Sdk/ndk/ndk_version
-cargo build --target aarch64-linux-android
-```
-
-### In your Cargo.toml
-
-```toml
-[dependencies]
-codex-bindings = { version = "0.1.3", features = ["static-linking"] }
-```
+- **basic_usage**: Demonstrates basic upload/download functionality
+- **chunk_operations**: Shows chunk-based upload and download operations
+- **debug_operations**: Demonstrates debug operations and logging
+- **p2p_networking**: Shows P2P networking operations
+- **storage_management**: Demonstrates storage management operations
+- **two_node_network**: Shows two-node network setup and data transfer
+- **thread_safe_tests**: Tests thread-safe node lifecycle and concurrent operations
 
 ## License
 

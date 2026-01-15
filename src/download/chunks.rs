@@ -6,7 +6,7 @@
 
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_download_chunk, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_download_chunk, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 use std::sync::{Arc, Mutex};
@@ -58,7 +58,8 @@ pub async fn download_chunk(node: &CodexNode, cid: &str) -> Result<Vec<u8>> {
         let result = with_libcodex_lock(|| unsafe {
             let ctx = node.ctx();
             let c_cid = string_to_c_string(&cid);
-            let result = codex_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+            let result =
+                storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
             free_c_string(c_cid);
 
@@ -177,7 +178,8 @@ where
         let result = with_libcodex_lock(|| unsafe {
             let ctx = node.ctx();
             let c_cid = string_to_c_string(&cid);
-            let result = codex_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+            let result =
+                storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
             free_c_string(c_cid);
 

@@ -7,7 +7,7 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{
-    codex_upload_cancel, codex_upload_finalize, codex_upload_init, free_c_string,
+    free_c_string, storage_upload_cancel, storage_upload_finalize, storage_upload_init,
     string_to_c_string,
 };
 use crate::node::lifecycle::CodexNode;
@@ -48,7 +48,7 @@ pub async fn upload_init(node: &CodexNode, options: &UploadOptions) -> Result<St
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_filepath = string_to_c_string(filepath_str);
-                let result = codex_upload_init(
+                let result = storage_upload_init(
                     ctx as *mut _,
                     c_filepath,
                     chunk_size,
@@ -106,7 +106,7 @@ pub async fn upload_finalize(node: &CodexNode, session_id: &str) -> Result<Strin
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
-                let result = codex_upload_finalize(
+                let result = storage_upload_finalize(
                     ctx as *mut _,
                     c_session_id,
                     Some(c_callback),
@@ -157,8 +157,12 @@ pub async fn upload_cancel(node: &CodexNode, session_id: &str) -> Result<()> {
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
-                let result =
-                    codex_upload_cancel(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
+                let result = storage_upload_cancel(
+                    ctx as *mut _,
+                    c_session_id,
+                    Some(c_callback),
+                    context_ptr,
+                );
 
                 free_c_string(c_session_id);
 

@@ -61,7 +61,7 @@ impl CallbackContext {
         }
     }
 
-    pub unsafe fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
+    pub unsafe fn handle_callback(&self, ret: i32, msg: *const c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
                 let message = unsafe {
@@ -194,7 +194,12 @@ where
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, resp: *mut c_void) {
+pub unsafe extern "C" fn c_callback(
+    ret: c_int,
+    msg: *const c_char,
+    len: size_t,
+    resp: *mut c_void,
+) {
     if resp.is_null() {
         return;
     }

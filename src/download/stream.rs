@@ -8,7 +8,7 @@ use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::download::session::download_init_sync;
 use crate::download::types::{DownloadOptions, DownloadResult, DownloadStreamOptions};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_download_stream, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_download_stream, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 use std::io::Write;
@@ -129,7 +129,7 @@ pub async fn download_stream(
                 let c_cid = string_to_c_string(cid_str);
                 let c_filepath = string_to_c_string(filepath_str);
 
-                let result = codex_download_stream(
+                let result = storage_download_stream(
                     ctx as *mut _,
                     c_cid,
                     chunk_size,

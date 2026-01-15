@@ -6,7 +6,7 @@
 
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_upload_chunk, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_upload_chunk, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 
@@ -59,7 +59,7 @@ pub async fn upload_chunk(node: &CodexNode, session_id: &str, chunk: Vec<u8>) ->
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_session_id = string_to_c_string(&session_id);
-                let result = codex_upload_chunk(
+                let result = storage_upload_chunk(
                     ctx as *mut _,
                     c_session_id,
                     chunk_ptr,

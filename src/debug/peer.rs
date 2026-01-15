@@ -4,7 +4,7 @@
 
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_peer_debug, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_peer_debug, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use crate::p2p::types::PeerRecord;
 use libc::c_void;
@@ -40,7 +40,7 @@ pub async fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
             // Call the C function with the context pointer directly
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_debug(
+                    storage_peer_debug(
                         ctx as *mut _,
                         c_peer_id,
                         Some(c_callback),

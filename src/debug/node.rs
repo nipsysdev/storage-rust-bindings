@@ -1,6 +1,6 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_debug, codex_log_level, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_debug, storage_log_level, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 use serde::{Deserialize, Serialize};
@@ -125,7 +125,7 @@ pub async fn debug(node: &CodexNode) -> Result<DebugInfo> {
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_debug(
+                storage_debug(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -157,7 +157,7 @@ pub async fn update_log_level(node: &CodexNode, log_level: LogLevel) -> Result<(
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_log_level(
+                storage_log_level(
                     ctx as *mut _,
                     c_log_level,
                     Some(c_callback),

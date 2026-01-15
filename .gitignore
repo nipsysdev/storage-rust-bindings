@@ -32,7 +32,6 @@ src/ffi/bindings.rs
 
 # Test output
 /tests/output/
-/examples/output/
 
 # Environment files
 .env

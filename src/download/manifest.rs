@@ -1,7 +1,7 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::download::types::Manifest;
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_download_manifest, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_download_manifest, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 
@@ -22,7 +22,7 @@ pub async fn download_manifest(node: &CodexNode, cid: &str) -> Result<Manifest> 
             node.with_ctx(|ctx| {
                 let c_cid = string_to_c_string(&cid);
                 let result =
-                    codex_download_manifest(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+                    storage_download_manifest(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
                 free_c_string(c_cid);
 

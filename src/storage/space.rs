@@ -1,6 +1,6 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_storage_list, codex_storage_space};
+use crate::ffi::{storage_list, storage_space};
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
 use serde::{Deserialize, Serialize};
@@ -49,7 +49,7 @@ pub async fn manifests(node: &CodexNode) -> Result<Vec<Manifest>> {
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_list(
+                storage_list(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -91,7 +91,7 @@ pub async fn space(node: &CodexNode) -> Result<Space> {
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_space(
+                storage_space(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,

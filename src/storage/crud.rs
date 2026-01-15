@@ -1,8 +1,7 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
 use crate::ffi::{
-    codex_storage_delete, codex_storage_exists, codex_storage_fetch, free_c_string,
-    string_to_c_string,
+    free_c_string, storage_delete, storage_exists, storage_fetch, string_to_c_string,
 };
 use crate::node::lifecycle::CodexNode;
 use libc::c_void;
@@ -22,7 +21,7 @@ pub async fn fetch(node: &CodexNode, cid: &str) -> Result<super::types::Manifest
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_fetch(
+                storage_fetch(
                     ctx as *mut _,
                     c_cid,
                     Some(c_callback),
@@ -67,7 +66,7 @@ pub async fn delete(node: &CodexNode, cid: &str) -> Result<()> {
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_delete(
+                storage_delete(
                     ctx as *mut _,
                     c_cid,
                     Some(c_callback),
@@ -109,7 +108,7 @@ pub async fn exists(node: &CodexNode, cid: &str) -> Result<bool> {
 
         let result = with_libcodex_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_exists(
+                storage_exists(
                     ctx as *mut _,
                     c_cid,
                     Some(c_callback),

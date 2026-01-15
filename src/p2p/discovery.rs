@@ -1,6 +1,6 @@
 use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
 use crate::error::{CodexError, Result};
-use crate::ffi::{codex_peer_debug, codex_peer_id, free_c_string, string_to_c_string};
+use crate::ffi::{free_c_string, storage_peer_debug, storage_peer_id, string_to_c_string};
 use crate::node::lifecycle::CodexNode;
 use crate::p2p::types::PeerRecord;
 use libc::c_void;
@@ -24,7 +24,7 @@ pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord
 
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_debug(
+                    storage_peer_debug(
                         ctx as *mut _,
                         c_peer_id,
                         Some(c_callback),
@@ -63,7 +63,7 @@ pub async fn get_peer_id(node: &CodexNode) -> Result<String> {
         with_libcodex_lock(|| {
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_id(
+                    storage_peer_id(
                         ctx as *mut _,
                         Some(c_callback),
                         future.context_ptr() as *mut c_void,
