@@ -4,5 +4,7 @@ pub mod cmdline;
 pub mod download;
 pub mod github;
 pub mod linker;
+pub mod local;
 pub mod prebuilt;
+pub mod remote;
 pub mod version;

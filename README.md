@@ -55,6 +55,15 @@ cargo build --release
 cargo build
 ```
 
+### Building using local libraries
+
+To use locally built libraries instead of downloading from GitHub, set the `STORAGE_BINDINGS_LOCAL_LIBS` environment variable to the path of the dist folder:
+
+```bash
+export STORAGE_BINDINGS_LOCAL_LIBS=/path/to/logos-storage-nim-bin/dist/master-50bd1839-linux-amd64
+cargo build
+```
+
 ### Testing
 
 The library includes comprehensive integration tests that demonstrate all major functionality.

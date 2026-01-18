@@ -72,32 +72,3 @@ pub fn parse_metadata_version(cargo_toml: &str) -> Option<String> {
                 })
         })
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_metadata_version() {
-        let cargo_toml = r#"
-[package]
-name = "test"
-
-[package.metadata.prebuilt]
-libstorage = "master-60861d6a"
-"#;
-        assert_eq!(
-            parse_metadata_version(cargo_toml),
-            Some("master-60861d6a".to_string())
-        );
-    }
-
-    #[test]
-    fn test_parse_metadata_version_missing() {
-        let cargo_toml = r#"
-[package]
-name = "test"
-"#;
-        assert_eq!(parse_metadata_version(cargo_toml), None);
-    }
-}

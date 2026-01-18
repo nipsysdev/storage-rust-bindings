@@ -1,13 +1,12 @@
+use std::fs::File;
+use std::io::copy;
 use std::path::PathBuf;
 
-/// Downloads and extracts a tar.gz archive
-pub fn download_and_extract(
-    url: &str,
-    dest_dir: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
-    println!("  [DOWNLOAD] Starting download_and_extract");
+/// Downloads a file to a specified path
+pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    println!("  [DOWNLOAD] Starting download_file");
     println!("  [DOWNLOAD] URL: {}", url);
-    println!("  [DOWNLOAD] Destination: {}", dest_dir.display());
+    println!("  [DOWNLOAD] Destination: {}", dest_path.display());
 
     println!("  [DOWNLOAD] Creating HTTP client...");
     let client = reqwest::blocking::Client::builder()
@@ -17,43 +16,22 @@ pub fn download_and_extract(
     println!("  [DOWNLOAD] ✓ HTTP client created");
 
     println!("  [DOWNLOAD] Starting HTTP GET request...");
-    let response = client.get(url).send()?;
+    let mut response = client.get(url).send()?;
     println!("  [DOWNLOAD] ✓ HTTP response received");
     println!("  [DOWNLOAD]   Status: {}", response.status());
-    println!("  [DOWNLOAD]   Headers: {:?}", response.headers());
 
     if !response.status().is_success() {
         return Err(format!("Download failed with status: {}", response.status()).into());
     }
 
-    let reader = response;
+    println!("  [DOWNLOAD] Creating destination file...");
+    let mut dest_file = File::create(dest_path)?;
+    println!("  [DOWNLOAD] ✓ Destination file created");
 
-    // Extract tar.gz
-    println!("  [DOWNLOAD] Creating GzDecoder...");
-    let gz_decoder = flate2::read::GzDecoder::new(reader);
-    println!("  [DOWNLOAD] ✓ GzDecoder created");
+    println!("  [DOWNLOAD] Copying response body to file...");
+    let bytes_copied = copy(&mut response, &mut dest_file)?;
+    println!("  [DOWNLOAD] ✓ Copied {} bytes", bytes_copied);
 
-    println!("  [DOWNLOAD] Creating tar archive...");
-    let mut tar_archive = tar::Archive::new(gz_decoder);
-    println!("  [DOWNLOAD] ✓ Tar archive created");
-
-    println!(
-        "  [DOWNLOAD] Starting extraction to: {}",
-        dest_dir.display()
-    );
-    let result = tar_archive.unpack(dest_dir);
-
-    match &result {
-        Ok(_) => {
-            println!("  [DOWNLOAD] ✓ Extraction completed successfully");
-        }
-        Err(e) => {
-            println!("  [DOWNLOAD] ✗ Extraction failed: {}", e);
-        }
-    }
-
-    result?;
-
-    println!("  [DOWNLOAD] ✓ download_and_extract completed successfully");
+    println!("  [DOWNLOAD] ✓ download_file completed successfully");
     Ok(())
 }

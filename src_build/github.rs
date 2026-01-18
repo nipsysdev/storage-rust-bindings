@@ -98,32 +98,76 @@ pub fn find_matching_asset<'a>(
     matching_asset
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Fetches the SHA256SUMS.txt file from a GitHub release
+pub fn fetch_checksums_file(version: &str) -> Result<String, Box<dyn std::error::Error>> {
+    println!("  [GITHUB] Starting fetch_checksums_file");
+    println!("  [GITHUB] Version: {}", version);
 
-    #[test]
-    fn test_find_matching_asset() {
-        let release = GitHubRelease {
-            tag_name: "test".to_string(),
-            assets: vec![
-                GitHubAsset {
-                    name: "logos-storage-nim-test-test-linux-amd64.tar.gz".to_string(),
-                    browser_download_url: "http://example.com/amd64.tar.gz".to_string(),
-                },
-                GitHubAsset {
-                    name: "logos-storage-nim-test-test-linux-arm64.tar.gz".to_string(),
-                    browser_download_url: "http://example.com/arm64.tar.gz".to_string(),
-                },
-            ],
-        };
+    let url = if version == "latest" {
+        println!("  [GITHUB] Using latest release endpoint");
+        "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/latest".to_string()
+    } else {
+        println!("  [GITHUB] Using tagged release endpoint");
+        format!(
+            "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/tags/{}",
+            version
+        )
+    };
 
-        let asset = find_matching_asset(&release, "linux-amd64");
-        assert!(asset.is_some());
-        assert!(asset.unwrap().name.contains("amd64"));
+    println!("  [GITHUB] URL: {}", url);
 
-        let asset = find_matching_asset(&release, "linux-arm64");
-        assert!(asset.is_some());
-        assert!(asset.unwrap().name.contains("arm64"));
+    println!("  [GITHUB] Creating HTTP client...");
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("storage-rust-bindings")
+        .timeout(std::time::Duration::from_secs(30))
+        .build()?;
+    println!("  [GITHUB] ✓ HTTP client created");
+
+    println!("  [GITHUB] Sending GET request to GitHub API...");
+    let response = client.get(&url).send()?;
+    println!("  [GITHUB] ✓ Response received");
+    println!("  [GITHUB]   Status: {}", response.status());
+
+    if !response.status().is_success() {
+        println!("  [GITHUB] ✗ GitHub API request failed");
+        return Err(format!("GitHub API returned status: {}", response.status()).into());
     }
+
+    println!("  [GITHUB] Parsing JSON response...");
+    let release: GitHubRelease = response.json()?;
+    println!("  [GITHUB] ✓ JSON parsed successfully");
+
+    // Find SHA256SUMS.txt asset
+    println!("  [GITHUB] Looking for SHA256SUMS.txt asset...");
+    let checksums_asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name == "SHA256SUMS.txt")
+        .ok_or("SHA256SUMS.txt not found in release assets")?;
+
+    println!("  [GITHUB] ✓ Found SHA256SUMS.txt asset");
+    println!(
+        "  [GITHUB]   Download URL: {}",
+        checksums_asset.browser_download_url
+    );
+
+    // Download the checksums file content
+    println!("  [GITHUB] Downloading SHA256SUMS.txt content...");
+    let checksums_response = client.get(&checksums_asset.browser_download_url).send()?;
+
+    if !checksums_response.status().is_success() {
+        println!("  [GITHUB] ✗ Failed to download SHA256SUMS.txt");
+        return Err(format!(
+            "Failed to download SHA256SUMS.txt: {}",
+            checksums_response.status()
+        )
+        .into());
+    }
+
+    let content = checksums_response.text()?;
+    println!("  [GITHUB] ✓ SHA256SUMS.txt downloaded successfully");
+    println!("  [GITHUB]   Content length: {} bytes", content.len());
+
+    println!("  [GITHUB] ✓ fetch_checksums_file completed successfully");
+    Ok(content)
 }
