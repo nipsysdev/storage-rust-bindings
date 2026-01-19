@@ -59,7 +59,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     let node1_peer_id = node1.peer_id()?;
     let node1_repo = node1.repo()?;
-    let debug1 = codex_bindings::debug(&node1).await?;
+    let debug1 = storage_bindings::debug(&node1).await?;
 
     println!("Node 1 started:");
     println!("  Peer ID: {}", node1_peer_id);
