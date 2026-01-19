@@ -47,6 +47,3 @@ src/ffi/bindings.rs
 
 # LLM
 .kilocode
-
-# bindings
-.last_built_architecture
