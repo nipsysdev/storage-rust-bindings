@@ -58,7 +58,7 @@ pub async fn manifests(node: &StorageNode) -> Result<Vec<Manifest>> {
         });
 
         if result != 0 {
-            return Err(StorageError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "manifests",
                 "Failed to list manifests",
             ));
@@ -102,7 +102,7 @@ pub async fn space(node: &StorageNode) -> Result<Space> {
         });
 
         if result != 0 {
-            return Err(StorageError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "space",
                 "Failed to get storage space",
             ));

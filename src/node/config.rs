@@ -5,22 +5,17 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 /// Log level for the Storage node
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Trace,
     Debug,
+    #[default]
     Info,
     Notice,
     Warn,
     Error,
     Fatal,
-}
-
-impl Default for LogLevel {
-    fn default() -> Self {
-        LogLevel::Info
-    }
 }
 
 impl std::fmt::Display for LogLevel {
@@ -38,19 +33,14 @@ impl std::fmt::Display for LogLevel {
 }
 
 /// Log format for the Storage node
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum LogFormat {
+    #[default]
     Auto,
     Colors,
     NoColors,
     Json,
-}
-
-impl Default for LogFormat {
-    fn default() -> Self {
-        LogFormat::Auto
-    }
 }
 
 impl std::fmt::Display for LogFormat {
@@ -65,18 +55,13 @@ impl std::fmt::Display for LogFormat {
 }
 
 /// Repository kind for storage backend
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum RepoKind {
+    #[default]
     Fs,
     Sqlite,
     LevelDb,
-}
-
-impl Default for RepoKind {
-    fn default() -> Self {
-        RepoKind::Fs
-    }
 }
 
 impl std::fmt::Display for RepoKind {

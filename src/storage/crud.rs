@@ -38,7 +38,7 @@ pub async fn fetch(node: &StorageNode, cid: &str) -> Result<super::types::Manife
         }
 
         if result != 0 {
-            return Err(StorageError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "fetch",
                 "Failed to fetch manifest",
             ));
@@ -86,7 +86,7 @@ pub async fn delete(node: &StorageNode, cid: &str) -> Result<()> {
         }
 
         if result != 0 {
-            return Err(StorageError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "delete",
                 "Failed to delete content",
             ));
@@ -131,7 +131,7 @@ pub async fn exists(node: &StorageNode, cid: &str) -> Result<bool> {
         }
 
         if result != 0 {
-            return Err(StorageError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "exists",
                 "Failed to check if content exists",
             ));

@@ -65,12 +65,12 @@ impl PeerInfo {
 
     /// Check if the connection is inbound
     pub fn is_inbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "inbound")
+        self.direction.as_ref().is_some_and(|d| d == "inbound")
     }
 
     /// Check if the connection is outbound
     pub fn is_outbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "outbound")
+        self.direction.as_ref().is_some_and(|d| d == "outbound")
     }
 
     /// Get a human-readable latency string
@@ -278,12 +278,12 @@ impl PeerRecord {
 
     /// Check if the connection is inbound
     pub fn is_inbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "inbound")
+        self.direction.as_ref().is_some_and(|d| d == "inbound")
     }
 
     /// Check if the connection is outbound
     pub fn is_outbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "outbound")
+        self.direction.as_ref().is_some_and(|d| d == "outbound")
     }
 }
 

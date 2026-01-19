@@ -100,7 +100,7 @@ pub fn validate_peer_id(peer_id: &str) -> Result<()> {
         ));
     }
 
-    let valid_prefixes = vec!["12D3KooW", "Qm", "bafy", "bafk"];
+    let valid_prefixes = ["12D3KooW", "Qm", "bafy", "bafk"];
 
     let has_valid_prefix = valid_prefixes
         .iter()
@@ -127,19 +127,19 @@ pub fn validate_addresses(addresses: &[String]) -> Result<()> {
     for (i, address) in addresses.iter().enumerate() {
         if address.is_empty() {
             return Err(StorageError::invalid_parameter(
-                &format!("addresses[{}]", i),
+                format!("addresses[{}]", i),
                 "Address cannot be empty",
             ));
         }
 
         if !address.starts_with('/') {
             return Err(StorageError::invalid_parameter(
-                &format!("addresses[{}]", i),
+                format!("addresses[{}]", i),
                 "Address must start with '/'",
             ));
         }
 
-        let valid_protocols = vec![
+        let valid_protocols = [
             "/ip4", "/ip6", "/dns4", "/dns6", "/dnsaddr", "/tcp", "/udp", "/quic", "/ws", "/wss",
             "/p2p", "/ipfs",
         ];
@@ -150,7 +150,7 @@ pub fn validate_addresses(addresses: &[String]) -> Result<()> {
 
         if !has_valid_protocol {
             return Err(StorageError::invalid_parameter(
-                &format!("addresses[{}]", i),
+                format!("addresses[{}]", i),
                 "Address contains invalid protocol",
             ));
         }

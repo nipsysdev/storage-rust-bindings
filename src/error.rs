@@ -76,7 +76,10 @@ impl StorageError {
         }
     }
 
-    pub fn storage_error(operation: impl Into<String>, message: impl Into<String>) -> Self {
+    pub fn storage_operation_error(
+        operation: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
         StorageError::StorageError {
             operation: operation.into(),
             message: message.into(),
@@ -129,35 +132,6 @@ pub fn from_c_error(code: i32, message: &str) -> StorageError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_error_creation() {
-        let err = StorageError::library_error("Test error");
-        assert!(matches!(err, StorageError::LibraryError { .. }));
-
-        let err = StorageError::node_error("start", "Failed to start");
-        assert!(matches!(err, StorageError::NodeError { .. }));
-
-        let err = StorageError::upload_error("Upload failed");
-        assert!(matches!(err, StorageError::UploadError { .. }));
-    }
-
-    #[test]
-    fn test_error_display() {
-        let err = StorageError::library_error("Test error");
-        assert_eq!(err.to_string(), "Storage library error: Test error");
-
-        let err = StorageError::node_error("start", "Failed to start");
-        assert_eq!(
-            err.to_string(),
-            "Node operation failed: start - Failed to start"
-        );
-    }
-}
-
 impl Clone for StorageError {
     fn clone(&self) -> Self {
         match self {
@@ -204,5 +178,34 @@ impl Clone for StorageError {
             },
             StorageError::JoinError(_) => StorageError::library_error("Task join error"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_error_creation() {
+        let err = StorageError::library_error("Test error");
+        assert!(matches!(err, StorageError::LibraryError { .. }));
+
+        let err = StorageError::node_error("start", "Failed to start");
+        assert!(matches!(err, StorageError::NodeError { .. }));
+
+        let err = StorageError::upload_error("Upload failed");
+        assert!(matches!(err, StorageError::UploadError { .. }));
+    }
+
+    #[test]
+    fn test_error_display() {
+        let err = StorageError::library_error("Test error");
+        assert_eq!(err.to_string(), "Storage library error: Test error");
+
+        let err = StorageError::node_error("start", "Failed to start");
+        assert_eq!(
+            err.to_string(),
+            "Node operation failed: start - Failed to start"
+        );
     }
 }

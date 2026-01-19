@@ -122,7 +122,7 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut connection_successful = false;
     for addr in &node1_addresses {
-        match connect(&node2, &node1_peer_id, &[addr.clone()]).await {
+        match connect(&node2, &node1_peer_id, std::slice::from_ref(addr)).await {
             Ok(()) => {
                 println!("✓ Successfully connected node2 to node1 at {}", addr);
                 connection_successful = true;

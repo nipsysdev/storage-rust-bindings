@@ -7,6 +7,9 @@ use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
+/// Type alias for the progress callback function type
+type ProgressCallback = Box<dyn Fn(usize, Option<&[u8]>) + Send>;
+
 static LIBSTORAGE_MUTEX: Mutex<()> = Mutex::new(());
 
 static CALLBACK_REGISTRY: LazyLock<Mutex<HashMap<u64, Arc<CallbackContext>>>> =
@@ -16,9 +19,15 @@ static NEXT_CALLBACK_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(1));
 pub struct CallbackContext {
     result: Mutex<Option<Result<String>>>,
     waker: Mutex<Option<Waker>>,
-    progress_callback: Mutex<Option<Box<dyn Fn(usize, Option<&[u8]>) + Send>>>,
+    progress_callback: Mutex<Option<ProgressCallback>>,
     completed: Mutex<bool>,
     id: u64,
+}
+
+impl Default for CallbackContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CallbackContext {
@@ -61,6 +70,16 @@ impl CallbackContext {
         }
     }
 
+    /// Handles a callback from the C library
+    ///
+    /// # Safety
+    ///
+    /// The `msg` pointer must be either:
+    /// - A valid pointer to a null-terminated C string (for Ok/Error callbacks)
+    /// - A valid pointer to a byte array of length `len` (for Progress callbacks)
+    /// - A null pointer (which will be handled appropriately)
+    ///
+    /// The memory pointed to by `msg` must remain valid for the duration of this call.
     pub unsafe fn handle_callback(&self, ret: i32, msg: *const c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
@@ -141,6 +160,12 @@ pub struct CallbackFuture {
     pub(crate) context: Arc<CallbackContext>,
 }
 
+impl Default for CallbackFuture {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CallbackFuture {
     pub fn new() -> Self {
         let context = Arc::new(CallbackContext::new());
@@ -193,6 +218,20 @@ where
     f()
 }
 
+/// C callback function that is called from the libstorage library
+///
+/// # Safety
+///
+/// The `msg` pointer must be either:
+/// - A valid pointer to a null-terminated C string (for Ok/Error callbacks)
+/// - A valid pointer to a byte array of length `len` (for Progress callbacks)
+/// - A null pointer (which will be handled appropriately)
+///
+/// The `resp` pointer must be either:
+/// - A valid pointer to a u64 callback ID that was previously registered
+/// - A null pointer (which will cause the function to return early)
+///
+/// The memory pointed to by `msg` and `resp` must remain valid for the duration of this call.
 #[no_mangle]
 pub unsafe extern "C" fn c_callback(
     ret: c_int,

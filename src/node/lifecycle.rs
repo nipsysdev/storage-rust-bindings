@@ -381,16 +381,16 @@ impl Drop for StorageNode {
         if Arc::strong_count(&self.inner) == 1 {
             let mut inner = self.inner.lock().unwrap();
             if !inner.ctx.is_null() && inner.started {
-                let _ = unsafe {
+                unsafe {
                     storage_stop(inner.ctx as *mut _, None, ptr::null_mut());
-                };
+                }
                 inner.started = false;
             }
 
             if !inner.ctx.is_null() {
-                let _ = unsafe {
+                unsafe {
                     storage_destroy(inner.ctx as *mut _, None, ptr::null_mut());
-                };
+                }
                 inner.ctx = ptr::null_mut();
             }
         }

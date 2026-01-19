@@ -1,6 +1,6 @@
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const CACHE_DIR_NAME: &str = "storage-bindings";
 pub const FORCE_DOWNLOAD_ENV_VAR: &str = "STORAGE_BINDINGS_FORCE_DOWNLOAD";
@@ -54,10 +54,7 @@ pub fn clean_cache() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Copies files from cache to output directory
-pub fn copy_from_cache(
-    cache_dir: &PathBuf,
-    out_dir: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn copy_from_cache(cache_dir: &Path, out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  [CACHE] Copying files from cache to OUT_DIR...");
 
     for entry in fs::read_dir(cache_dir)? {
@@ -81,7 +78,7 @@ pub fn copy_from_cache(
 }
 
 /// Validates that cache directory contains required files
-pub fn validate_cache(cache_dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn validate_cache(cache_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     if !cache_dir.exists() {
         return Err("Cache directory does not exist".into());
     }
@@ -90,7 +87,7 @@ pub fn validate_cache(cache_dir: &PathBuf) -> Result<(), Box<dyn std::error::Err
     let has_library = cache_dir
         .read_dir()?
         .filter_map(|e| e.ok())
-        .any(|e| e.path().extension().map_or(false, |ext| ext == "a"));
+        .any(|e| e.path().extension().is_some_and(|ext| ext == "a"));
 
     if !has_library {
         return Err("No library files (.a) found in cache".into());

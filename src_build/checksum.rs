@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::fs;
 use std::io::Read;
-use std::path::PathBuf;
+use std::path::Path;
 
 /// Calculates SHA256 checksum of a file
-pub fn calculate_sha256(file_path: &PathBuf) -> Result<String, Box<dyn std::error::Error>> {
+pub fn calculate_sha256(file_path: &Path) -> Result<String, Box<dyn std::error::Error>> {
     println!(
         "  [CHECKSUM] Calculating SHA256 for: {}",
         file_path.display()
@@ -35,7 +35,7 @@ pub fn calculate_sha256(file_path: &PathBuf) -> Result<String, Box<dyn std::erro
 
 /// Verifies the checksum of an archive file against an expected checksum
 pub fn verify_archive_checksum(
-    archive_path: &PathBuf,
+    archive_path: &Path,
     expected_checksum: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     println!("  [CHECKSUM] Verifying archive checksum...");
@@ -61,7 +61,7 @@ pub fn verify_archive_checksum(
 
 /// Parses a SHA256SUMS.txt file and returns a HashMap of filename -> checksum
 pub fn parse_checksums_file(
-    path: &PathBuf,
+    path: &Path,
 ) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
     println!("  [CHECKSUM] Parsing checksums file: {}", path.display());
 
@@ -95,7 +95,7 @@ pub fn parse_checksums_file(
 }
 
 /// Verifies checksums for all files in a directory against SHA256SUMS.txt
-pub fn verify_all_checksums(dir: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn verify_all_checksums(dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     println!("  [CHECKSUM] Starting comprehensive checksum verification");
     println!("  [CHECKSUM] Directory: {}", dir.display());
 
@@ -163,7 +163,7 @@ pub fn verify_all_checksums(dir: &PathBuf) -> Result<(), Box<dyn std::error::Err
 
 /// Verifies a single file's checksum against an expected value
 fn verify_single_checksum(
-    file_path: &PathBuf,
+    file_path: &Path,
     expected_checksum: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut file = fs::File::open(file_path)?;

@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::prebuilt;
 
@@ -8,9 +8,7 @@ pub const LIBSTORAGE_H: &str = "libstorage.h";
 
 /// Attempts to use local libraries if environment variable is set
 /// Returns Ok with the output directory path if successful, Err otherwise
-pub fn try_local_development_mode(
-    out_dir: &PathBuf,
-) -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn try_local_development_mode(out_dir: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let local_libs_path = match std::env::var(LOCAL_LIBS_ENV_VAR) {
         Ok(path) => path,
         Err(_) => {
@@ -44,14 +42,11 @@ pub fn try_local_development_mode(
     copy_all_files(&local_path, out_dir)?;
 
     prebuilt::log_info("✓ Local libraries copied successfully");
-    Ok(out_dir.clone())
+    Ok(out_dir.to_path_buf())
 }
 
 /// Copies all files from local path to output directory
-fn copy_all_files(
-    local_path: &PathBuf,
-    out_dir: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_all_files(local_path: &Path, out_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     prebuilt::log_info("Copying all files from local path to OUT_DIR...");
 
     for entry in std::fs::read_dir(local_path)? {

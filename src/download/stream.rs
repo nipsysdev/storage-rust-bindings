@@ -106,7 +106,7 @@ pub async fn download_stream(
                     }
                 }
 
-                if let Err(_) = tx_clone.send(chunk_bytes.to_vec()) {
+                if tx_clone.send(chunk_bytes.to_vec()).is_err() {
                     eprintln!("Failed to send data to writer thread");
                 }
             }

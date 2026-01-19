@@ -3,18 +3,13 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum UploadStrategy {
     Chunked,
     Stream,
+    #[default]
     Auto,
-}
-
-impl Default for UploadStrategy {
-    fn default() -> Self {
-        UploadStrategy::Auto
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -229,7 +224,7 @@ mod tests {
         assert_eq!(options.filepath, Some(PathBuf::from("/test/file.txt")));
         assert_eq!(options.chunk_size, Some(2048));
         assert_eq!(options.strategy, UploadStrategy::Chunked);
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
         assert_eq!(options.timeout, Some(600));
     }
 

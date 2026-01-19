@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::cache;
 use super::checksum;
@@ -11,7 +11,7 @@ use super::version;
 
 /// Downloads prebuilt binaries from GitHub
 pub fn download_from_github(
-    out_dir: &PathBuf,
+    out_dir: &Path,
     target: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let platform = targets::map_target_to_platform(target).ok_or_else(|| {
@@ -32,7 +32,7 @@ pub fn download_from_github(
         prebuilt::log_info("Force download requested, skipping cache");
         download_and_extract_binaries(out_dir, platform, &release_version)?;
         prebuilt::validate_required_files(out_dir)?;
-        return Ok(out_dir.clone());
+        return Ok(out_dir.to_path_buf());
     }
 
     // Try to use cached files
@@ -49,12 +49,12 @@ pub fn download_from_github(
 
     prebuilt::log_info("✓ Successfully extracted and cached prebuilt binaries");
     prebuilt::log_info(&format!("✓ Returning directory: {}", out_dir.display()));
-    Ok(out_dir.clone())
+    Ok(out_dir.to_path_buf())
 }
 
 /// Attempts to use cached files if they exist and are valid
 fn try_use_cached_files(
-    out_dir: &PathBuf,
+    out_dir: &Path,
     version: &str,
     platform: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -97,12 +97,12 @@ fn try_use_cached_files(
         "✓ Returning cached directory: {}",
         out_dir.display()
     ));
-    Ok(out_dir.clone())
+    Ok(out_dir.to_path_buf())
 }
 
 /// Downloads and extracts binaries from GitHub
 fn download_and_extract_binaries(
-    out_dir: &PathBuf,
+    out_dir: &Path,
     platform: &str,
     version: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -180,7 +180,7 @@ fn download_and_extract_binaries(
 
 /// Saves downloaded files to global cache
 fn save_to_cache(
-    out_dir: &PathBuf,
+    out_dir: &Path,
     version: &str,
     platform: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -213,10 +213,7 @@ fn save_to_cache(
 }
 
 /// Extracts a tar.gz archive to a directory
-fn extract_archive(
-    archive_path: &PathBuf,
-    dest_dir: &PathBuf,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn extract_archive(archive_path: &Path, dest_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
     prebuilt::log_info(&format!("Extracting archive: {}", archive_path.display()));
     prebuilt::log_info(&format!("Destination: {}", dest_dir.display()));
 

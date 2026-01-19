@@ -1,5 +1,4 @@
-use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use super::local;
 use super::remote;
@@ -9,7 +8,7 @@ pub use super::local::LIBSTORAGE_H;
 /// Ensures prebuilt binary is available in OUT_DIR
 /// Downloads and extracts if not cached
 pub fn ensure_prebuilt_binary(
-    out_dir: &PathBuf,
+    out_dir: &Path,
     target: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     log_info("Starting ensure_prebuilt_binary");
@@ -24,12 +23,12 @@ pub fn ensure_prebuilt_binary(
 }
 
 /// Validates that required files exist in the given path
-pub fn validate_required_files(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+pub fn validate_required_files(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     // Check for at least one .a library file
     let has_library = path
         .read_dir()?
         .filter_map(|e| e.ok())
-        .any(|e| e.path().extension().map_or(false, |ext| ext == "a"));
+        .any(|e| e.path().extension().is_some_and(|ext| ext == "a"));
 
     if !has_library {
         return Err("No library files (.a) found in the directory.".into());

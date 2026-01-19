@@ -1,8 +1,21 @@
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// Post-processes the generated bindings file to fix clippy warnings
+fn post_process_bindings(bindings_file: &Path) {
+    let content = fs::read_to_string(bindings_file).expect("Failed to read bindings file");
+
+    // Fix empty line after outer attribute
+    // Replace "#[allow(non_snake_case)]\n\n" with "#[allow(non_snake_case)]\n"
+    let fixed_content =
+        content.replace("#[allow(non_snake_case)]\n\n", "#[allow(non_snake_case)]\n");
+
+    fs::write(bindings_file, fixed_content).expect("Failed to write fixed bindings");
+}
 
 /// Generates Rust FFI bindings from the prebuilt header file
-pub fn generate_bindings(lib_dir: &PathBuf) {
+pub fn generate_bindings(lib_dir: &Path) {
     println!("  [BINDINGS] Starting generate_bindings");
     println!("  [BINDINGS] Library directory: {}", lib_dir.display());
 
@@ -58,6 +71,9 @@ pub fn generate_bindings(lib_dir: &PathBuf) {
         .write_to_file(&bindings_file)
         .expect("Couldn't write bindings!");
     println!("  [BINDINGS] ✓ Bindings written successfully");
+
+    post_process_bindings(&bindings_file);
+    println!("  [BINDINGS] ✓ Bindings post-processed successfully");
 
     println!(
         "cargo:rerun-if-changed={}",

@@ -461,7 +461,7 @@ mod tests {
         assert_eq!(options.cid, "QmExample");
         assert_eq!(options.chunk_size, Some(2048));
         assert_eq!(options.timeout, Some(600));
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
     }
 
     #[test]
@@ -499,7 +499,7 @@ mod tests {
         assert_eq!(options.dataset_size, Some(1024));
         assert!(!options.dataset_size_auto);
         assert_eq!(options.timeout, Some(600));
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
     }
 
     #[test]
