@@ -2,16 +2,21 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
+const STORAGE_VERSION_VAR: &str = "LOGOS_STORAGE_VERSION";
+
 /// Gets the release version to use, with priority:
-/// 1. Environment variable LOGOS_STORAGE_VERSION
-/// 2. Cargo.toml metadata [package.metadata.prebuilt] libstorage
+/// 1. Environment variable
+/// 2. Cargo.toml metadata
 /// 3. "latest" (default)
 pub fn get_release_version() -> Result<String, Box<dyn std::error::Error>> {
     println!("  [VERSION] Starting get_release_version");
 
     // Check for environment variable override (highest priority)
-    println!("  [VERSION] Checking environment variable LOGOS_STORAGE_VERSION...");
-    if let Ok(version) = env::var("LOGOS_STORAGE_VERSION") {
+    println!(
+        "  [VERSION] Checking environment variable {}...",
+        STORAGE_VERSION_VAR
+    );
+    if let Ok(version) = env::var(STORAGE_VERSION_VAR) {
         println!("  [VERSION] ✓ Found version from environment: {}", version);
         println!(
             "  [VERSION] ✓ Using pinned version from environment: {}",
