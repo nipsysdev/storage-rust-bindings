@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::copy;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 /// Downloads a file to a specified path
@@ -16,7 +16,7 @@ pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::
     println!("  [DOWNLOAD] ✓ HTTP client created");
 
     println!("  [DOWNLOAD] Starting HTTP GET request...");
-    let mut response = client.get(url).send()?;
+    let response = client.get(url).send()?;
     println!("  [DOWNLOAD] ✓ HTTP response received");
     println!("  [DOWNLOAD]   Status: {}", response.status());
 
@@ -24,14 +24,38 @@ pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::
         return Err(format!("Download failed with status: {}", response.status()).into());
     }
 
+    let total_size = response.content_length().unwrap_or(0);
+    println!("  [DOWNLOAD]   Total size: {} bytes", total_size);
+
     println!("  [DOWNLOAD] Creating destination file...");
     let mut dest_file = File::create(dest_path)?;
     println!("  [DOWNLOAD] ✓ Destination file created");
 
     println!("  [DOWNLOAD] Copying response body to file...");
-    let bytes_copied = copy(&mut response, &mut dest_file)?;
-    println!("  [DOWNLOAD] ✓ Copied {} bytes", bytes_copied);
+    let mut reader = response;
+    let mut buffer = vec![0u8; 8192]; // 8KB buffer
+    let mut downloaded = 0u64;
 
+    loop {
+        let bytes_read = reader.read(&mut buffer)?;
+        if bytes_read == 0 {
+            break;
+        }
+        dest_file.write_all(&buffer[..bytes_read])?;
+        downloaded += bytes_read as u64;
+
+        if total_size > 0 {
+            let percent = (downloaded as f64 / total_size as f64) * 100.0;
+            println!(
+                "  [DOWNLOAD]   Progress: {:.1}% ({}/{} bytes)",
+                percent, downloaded, total_size
+            );
+        } else {
+            println!("  [DOWNLOAD]   Downloaded: {} bytes", downloaded);
+        }
+    }
+
+    println!("  [DOWNLOAD] ✓ Copied {} bytes", downloaded);
     println!("  [DOWNLOAD] ✓ download_file completed successfully");
     Ok(())
 }
