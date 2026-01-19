@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use super::urls;
+
 #[derive(Debug, Deserialize)]
 pub struct GitHubRelease {
     pub tag_name: String,
@@ -19,21 +21,18 @@ pub fn fetch_release(version: &str) -> Result<GitHubRelease, Box<dyn std::error:
 
     let url = if version == "latest" {
         println!("  [GITHUB] Using latest release endpoint");
-        "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/latest".to_string()
+        urls::latest_release_url()
     } else {
         println!("  [GITHUB] Using tagged release endpoint");
-        format!(
-            "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/tags/{}",
-            version
-        )
+        urls::tagged_release_url(version)
     };
 
     println!("  [GITHUB] URL: {}", url);
 
     println!("  [GITHUB] Creating HTTP client...");
     let client = reqwest::blocking::Client::builder()
-        .user_agent("storage-rust-bindings")
-        .timeout(std::time::Duration::from_secs(30))
+        .user_agent(urls::USER_AGENT)
+        .timeout(std::time::Duration::from_secs(urls::API_TIMEOUT_SECONDS))
         .build()?;
     println!("  [GITHUB] ✓ HTTP client created");
 
@@ -105,21 +104,18 @@ pub fn fetch_checksums_file(version: &str) -> Result<String, Box<dyn std::error:
 
     let url = if version == "latest" {
         println!("  [GITHUB] Using latest release endpoint");
-        "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/latest".to_string()
+        urls::latest_release_url()
     } else {
         println!("  [GITHUB] Using tagged release endpoint");
-        format!(
-            "https://api.github.com/repos/nipsysdev/logos-storage-nim-bin/releases/tags/{}",
-            version
-        )
+        urls::tagged_release_url(version)
     };
 
     println!("  [GITHUB] URL: {}", url);
 
     println!("  [GITHUB] Creating HTTP client...");
     let client = reqwest::blocking::Client::builder()
-        .user_agent("storage-rust-bindings")
-        .timeout(std::time::Duration::from_secs(30))
+        .user_agent(urls::USER_AGENT)
+        .timeout(std::time::Duration::from_secs(urls::API_TIMEOUT_SECONDS))
         .build()?;
     println!("  [GITHUB] ✓ HTTP client created");
 

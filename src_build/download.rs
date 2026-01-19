@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
+use super::urls;
+
 /// Downloads a file to a specified path
 pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     println!("  [DOWNLOAD] Starting download_file");
@@ -10,8 +12,10 @@ pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::
 
     println!("  [DOWNLOAD] Creating HTTP client...");
     let client = reqwest::blocking::Client::builder()
-        .user_agent("storage-rust-bindings")
-        .timeout(std::time::Duration::from_secs(900)) // 15 minutes timeout for download
+        .user_agent(urls::USER_AGENT)
+        .timeout(std::time::Duration::from_secs(
+            urls::DOWNLOAD_TIMEOUT_SECONDS,
+        ))
         .build()?;
     println!("  [DOWNLOAD] ✓ HTTP client created");
 
@@ -33,7 +37,7 @@ pub fn download_file(url: &str, dest_path: &PathBuf) -> Result<(), Box<dyn std::
 
     println!("  [DOWNLOAD] Copying response body to file...");
     let mut reader = response;
-    let mut buffer = vec![0u8; 8192]; // 8KB buffer
+    let mut buffer = vec![0u8; urls::DOWNLOAD_BUFFER_SIZE];
     let mut downloaded = 0u64;
 
     loop {

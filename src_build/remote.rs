@@ -5,28 +5,19 @@ use super::checksum;
 use super::download;
 use super::github;
 use super::prebuilt;
+use super::targets;
 use super::version;
-
-/// Maps Rust target triple to platform identifier for prebuilt binaries
-pub fn map_target_to_platform(target: &str) -> Option<&'static str> {
-    match target {
-        "x86_64-unknown-linux-gnu" => Some("linux-amd64"),
-        "aarch64-unknown-linux-gnu" => Some("linux-arm64"),
-        "aarch64-apple-darwin" => Some("darwin-arm64"),
-        "x86_64-apple-darwin" => Some("darwin-amd64"),
-        _ => None,
-    }
-}
 
 /// Downloads prebuilt binaries from GitHub
 pub fn download_from_github(
     out_dir: &PathBuf,
     target: &str,
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let platform = map_target_to_platform(target).ok_or_else(|| {
+    let platform = targets::map_target_to_platform(target).ok_or_else(|| {
+        let supported = targets::supported_targets().join(", ");
         format!(
-            "Unsupported target: {}. Supported platforms: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin.",
-            target
+            "Unsupported target: {}. Supported platforms: {}.",
+            target, supported
         )
     })?;
 

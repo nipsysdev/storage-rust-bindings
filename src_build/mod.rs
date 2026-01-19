@@ -7,4 +7,6 @@ pub mod linker;
 pub mod local;
 pub mod prebuilt;
 pub mod remote;
+pub mod targets;
+pub mod urls;
 pub mod version;
