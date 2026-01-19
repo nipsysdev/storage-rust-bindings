@@ -32,7 +32,6 @@ pub fn download_from_github(
         prebuilt::log_info("Force download requested, skipping cache");
         download_and_extract_binaries(out_dir, platform, &release_version)?;
         prebuilt::validate_required_files(out_dir)?;
-        prebuilt::create_cache_marker(out_dir, "")?;
         return Ok(out_dir.clone());
     }
 
@@ -48,7 +47,6 @@ pub fn download_from_github(
     // Save to global cache
     save_to_cache(out_dir, &release_version, platform)?;
 
-    prebuilt::create_cache_marker(out_dir, "")?;
     prebuilt::log_info("✓ Successfully extracted and cached prebuilt binaries");
     prebuilt::log_info(&format!("✓ Returning directory: {}", out_dir.display()));
     Ok(out_dir.clone())

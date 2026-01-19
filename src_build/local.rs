@@ -5,7 +5,6 @@ use super::prebuilt;
 pub const LOCAL_LIBS_ENV_VAR: &str = "STORAGE_BINDINGS_LOCAL_LIBS";
 
 pub const LIBSTORAGE_H: &str = "libstorage.h";
-pub const CACHE_MARKER: &str = ".prebuilt_cached";
 
 /// Attempts to use local libraries if environment variable is set
 /// Returns Ok with the output directory path if successful, Err otherwise
@@ -43,7 +42,6 @@ pub fn try_local_development_mode(
     prebuilt::log_info("✓ All required files found");
 
     copy_all_files(&local_path, out_dir)?;
-    prebuilt::create_cache_marker(out_dir, "local")?;
 
     prebuilt::log_info("✓ Local libraries copied successfully");
     Ok(out_dir.clone())

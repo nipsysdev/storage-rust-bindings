@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use super::local;
 use super::remote;
 
-pub use super::local::{CACHE_MARKER, LIBSTORAGE_H};
+pub use super::local::LIBSTORAGE_H;
 
 /// Ensures prebuilt binary is available in OUT_DIR
 /// Downloads and extracts if not cached
@@ -47,18 +47,6 @@ pub fn validate_required_files(path: &PathBuf) -> Result<(), Box<dyn std::error:
         .into());
     }
 
-    Ok(())
-}
-
-/// Creates a cache marker file with optional content
-pub fn create_cache_marker(
-    out_dir: &PathBuf,
-    content: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let cache_marker = out_dir.join(CACHE_MARKER);
-    log_info("Creating cache marker...");
-    fs::write(&cache_marker, content)?;
-    log_info("✓ Cache marker created");
     Ok(())
 }
 
