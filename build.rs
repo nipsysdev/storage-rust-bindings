@@ -6,6 +6,28 @@ mod src_build;
 fn main() {
     println!("=== Starting build.rs ===");
 
+    // Tell Cargo to rerun if environment variables change
+    println!(
+        "cargo:rerun-if-env-changed={}",
+        src_build::cache::CLEAN_CACHE_ENV_VAR
+    );
+    println!(
+        "cargo:rerun-if-env-changed={}",
+        src_build::cache::FORCE_DOWNLOAD_ENV_VAR
+    );
+    println!(
+        "cargo:rerun-if-env-changed={}",
+        src_build::version::STORAGE_VERSION_VAR
+    );
+
+    // Handle cache cleanup request
+    if src_build::cache::should_clean_cache() {
+        println!("\n=== Cleaning cache ===");
+        src_build::cache::clean_cache().expect("Failed to clean cache");
+        println!("=== Cache cleanup complete ===");
+        return;
+    }
+
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
     let target = env::var("TARGET").unwrap_or_default();
 

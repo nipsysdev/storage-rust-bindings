@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const STORAGE_VERSION_VAR: &str = "LOGOS_STORAGE_VERSION";
+pub const STORAGE_VERSION_VAR: &str = "LOGOS_STORAGE_VERSION";
 
 /// Gets the release version to use, with priority:
 /// 1. Environment variable

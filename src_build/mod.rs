@@ -1,4 +1,5 @@
 pub mod bindings;
+pub mod cache;
 pub mod checksum;
 pub mod cmdline;
 pub mod download;

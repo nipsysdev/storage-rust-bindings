@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::PathBuf;
 
+use super::cache;
 use super::checksum;
 use super::download;
 use super::github;
@@ -23,51 +24,76 @@ pub fn download_from_github(
 
     prebuilt::log_info(&format!("Mapped target to platform: {}", platform));
 
-    if let Ok(result) = try_use_cached_files(out_dir) {
+    // Get the version we're using
+    let release_version = version::get_release_version()?;
+
+    // Check if force download is requested
+    if cache::should_force_download() {
+        prebuilt::log_info("Force download requested, skipping cache");
+        download_and_extract_binaries(out_dir, platform, &release_version)?;
+        prebuilt::validate_required_files(out_dir)?;
+        prebuilt::create_cache_marker(out_dir, "")?;
+        return Ok(out_dir.clone());
+    }
+
+    // Try to use cached files
+    if let Ok(result) = try_use_cached_files(out_dir, &release_version, platform) {
         return Ok(result);
     }
 
-    download_and_extract_binaries(out_dir, platform)?;
+    // Download and cache
+    download_and_extract_binaries(out_dir, platform, &release_version)?;
     prebuilt::validate_required_files(out_dir)?;
-    prebuilt::create_cache_marker(out_dir, "")?;
 
-    prebuilt::log_info("✓ Successfully extracted prebuilt binaries");
+    // Save to global cache
+    save_to_cache(out_dir, &release_version, platform)?;
+
+    prebuilt::create_cache_marker(out_dir, "")?;
+    prebuilt::log_info("✓ Successfully extracted and cached prebuilt binaries");
     prebuilt::log_info(&format!("✓ Returning directory: {}", out_dir.display()));
     Ok(out_dir.clone())
 }
 
 /// Attempts to use cached files if they exist and are valid
-fn try_use_cached_files(out_dir: &PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let cache_marker = out_dir.join(prebuilt::CACHE_MARKER);
+fn try_use_cached_files(
+    out_dir: &PathBuf,
+    version: &str,
+    platform: &str,
+) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let cache_dir = cache::get_version_cache_dir(version, platform)?;
 
     prebuilt::log_info("Checking cache:");
     prebuilt::log_info(&format!(
-        "  Cache marker: {} (exists: {})",
-        cache_marker.display(),
-        cache_marker.exists()
+        "  Cache directory: {} (exists: {})",
+        cache_dir.display(),
+        cache_dir.exists()
     ));
 
-    if !cache_marker.exists() {
-        return Err("Cache marker not found".into());
+    if !cache_dir.exists() {
+        return Err("Cache directory not found".into());
     }
 
-    // Validate that required files exist (at least one .a file and libstorage.h)
-    prebuilt::validate_required_files(out_dir)?;
+    // Validate cache contents
+    cache::validate_cache(&cache_dir)?;
 
     prebuilt::log_info("✓ Using cached prebuilt binaries");
 
-    // Use comprehensive checksum verification
+    // Verify checksums of cached files
     prebuilt::log_info("Verifying checksums of cached files...");
-    if let Err(e) = checksum::verify_all_checksums(out_dir) {
+    if let Err(e) = checksum::verify_all_checksums(&cache_dir) {
         prebuilt::log_info(&format!(
             "⚠ Checksum verification failed for cached files: {}",
             e
         ));
         prebuilt::log_info("Re-downloading prebuilt binaries...");
-        let _ = fs::remove_file(&cache_marker);
+        // Remove invalid cache
+        let _ = fs::remove_dir_all(&cache_dir);
         return Err("Checksum verification failed".into());
     }
     prebuilt::log_info("✓ Checksum verification passed");
+
+    // Copy from cache to OUT_DIR
+    cache::copy_from_cache(&cache_dir, out_dir)?;
 
     prebuilt::log_info(&format!(
         "✓ Returning cached directory: {}",
@@ -80,13 +106,12 @@ fn try_use_cached_files(out_dir: &PathBuf) -> Result<PathBuf, Box<dyn std::error
 fn download_and_extract_binaries(
     out_dir: &PathBuf,
     platform: &str,
+    version: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    prebuilt::log_info("Getting release version...");
-    let release_version = version::get_release_version()?;
-    prebuilt::log_info(&format!("Release version: {}", release_version));
+    prebuilt::log_info(&format!("Getting release version: {}", version));
 
     prebuilt::log_info("Fetching release from GitHub...");
-    let release = github::fetch_release(&release_version)?;
+    let release = github::fetch_release(version)?;
     prebuilt::log_info(&format!("✓ Release fetched: {}", release.tag_name));
     prebuilt::log_info(&format!("  Number of assets: {}", release.assets.len()));
 
@@ -114,7 +139,7 @@ fn download_and_extract_binaries(
 
     // Fetch SHA256SUMS.txt to get expected checksum for the archive
     prebuilt::log_info("Fetching SHA256SUMS.txt from GitHub...");
-    let checksums_content = github::fetch_checksums_file(&release_version)?;
+    let checksums_content = github::fetch_checksums_file(version)?;
 
     // Parse checksums to find the expected checksum for this archive
     prebuilt::log_info(&format!("Looking for checksum for: {}", asset.name));
@@ -152,6 +177,40 @@ fn download_and_extract_binaries(
     checksum::verify_all_checksums(out_dir)?;
     prebuilt::log_info("✓ All checksums verified");
 
+    Ok(())
+}
+
+/// Saves downloaded files to global cache
+fn save_to_cache(
+    out_dir: &PathBuf,
+    version: &str,
+    platform: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let cache_dir = cache::get_version_cache_dir(version, platform)?;
+
+    prebuilt::log_info(&format!("Saving to cache: {}", cache_dir.display()));
+
+    // Create cache directory if it doesn't exist
+    fs::create_dir_all(&cache_dir)?;
+
+    // Copy all files from OUT_DIR to cache
+    for entry in fs::read_dir(out_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+
+        if path.is_file() {
+            let file_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .ok_or("Invalid filename")?;
+
+            let dest = cache_dir.join(file_name);
+            fs::copy(&path, &dest)?;
+            prebuilt::log_info(&format!("  Cached: {}", file_name));
+        }
+    }
+
+    prebuilt::log_info("✓ Files saved to cache");
     Ok(())
 }
 

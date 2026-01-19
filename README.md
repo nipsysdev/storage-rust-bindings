@@ -22,6 +22,58 @@ Building will automatically:
 
 **Note**: The first build will download the prebuilt binary (~50MB). Subsequent builds will use the cached version.
 
+## Caching
+
+Prebuilt binaries are automatically cached to improve build performance and reduce network usage.
+
+### Cache Location
+
+Prebuilt binaries are cached in a platform-specific location:
+
+- **Linux**: `~/.cache/storage-bindings/`
+- **macOS**: `~/Library/Caches/storage-bindings/`
+- **Windows**: `%LOCALAPPDATA%\storage-bindings\cache\`
+
+The cache is organized by version and platform:
+
+```
+~/.cache/storage-bindings/
+├── master-1acedcf/
+│   ├── linux-amd64/
+│   │   ├── libstorage.a
+│   │   ├── libstorage.h
+│   │   └── SHA256SUMS.txt
+│   └── darwin-arm64/
+│       └── ...
+└── master-2b3d4e5/
+    └── ...
+```
+
+### Managing the Cache
+
+#### Force Re-download
+
+To force a fresh download without clearing the cache:
+
+```bash
+STORAGE_BINDINGS_FORCE_DOWNLOAD=1 cargo build
+```
+
+#### Clean Entire Cache
+
+To remove all cached binaries:
+
+```bash
+# Linux/macOS
+rm -rf ~/.cache/storage-bindings/
+
+# Windows
+rmdir /s /q %LOCALAPPDATA%\storage-bindings\cache
+
+# Or using the build script
+STORAGE_BINDINGS_CLEAN_CACHE=1 cargo build
+```
+
 ### Supported Platforms
 
 - Linux x86_64 (x86_64-unknown-linux-gnu)
