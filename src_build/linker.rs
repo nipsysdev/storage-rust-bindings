@@ -44,8 +44,6 @@ pub fn link_prebuilt_library(lib_dir: &PathBuf) {
     println!("  [LINKER] ✓ Link search path set");
 
     // Link each library separately
-    // The logos-storage-nim-bin build process now provides individual static libraries
-    // instead of a nested archive, which resolves linking issues
     println!("  [LINKER] Linking static libraries:");
     println!("  [LINKER]   - storage");
     println!("cargo:rustc-link-lib=static=storage");

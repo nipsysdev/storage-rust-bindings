@@ -25,8 +25,7 @@ pub fn download_from_github(
 ) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let platform = map_target_to_platform(target).ok_or_else(|| {
         format!(
-            "Unsupported target: {}. Supported platforms: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin. \
-             For Android support, please use the previous version or build from source.",
+            "Unsupported target: {}. Supported platforms: x86_64-unknown-linux-gnu, aarch64-unknown-linux-gnu, aarch64-apple-darwin, x86_64-apple-darwin.",
             target
         )
     })?;

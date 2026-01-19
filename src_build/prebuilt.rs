@@ -24,7 +24,6 @@ pub fn ensure_prebuilt_binary(
 }
 
 /// Validates that required files exist in the given path
-/// Checks for at least one .a library file and the libstorage.h header file
 pub fn validate_required_files(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
     // Check for at least one .a library file
     let has_library = path
@@ -33,9 +32,7 @@ pub fn validate_required_files(path: &PathBuf) -> Result<(), Box<dyn std::error:
         .any(|e| e.path().extension().map_or(false, |ext| ext == "a"));
 
     if !has_library {
-        return Err("No library files (.a) found in the directory. \
-             Please ensure the folder contains at least one static library file."
-            .into());
+        return Err("No library files (.a) found in the directory.".into());
     }
 
     // Check for required header file
