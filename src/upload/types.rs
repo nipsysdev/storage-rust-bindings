@@ -1,20 +1,15 @@
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum UploadStrategy {
     Chunked,
     Stream,
+    #[default]
     Auto,
-}
-
-impl Default for UploadStrategy {
-    fn default() -> Self {
-        UploadStrategy::Auto
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -145,7 +140,7 @@ impl UploadOptions {
     pub fn validate(&self) -> Result<()> {
         if let Some(chunk_size) = self.chunk_size {
             if chunk_size == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "chunk_size",
                     "Chunk size must be greater than 0",
                 ));
@@ -154,7 +149,7 @@ impl UploadOptions {
 
         if let Some(timeout) = self.timeout {
             if timeout == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "timeout",
                     "Timeout must be greater than 0",
                 ));
@@ -229,7 +224,7 @@ mod tests {
         assert_eq!(options.filepath, Some(PathBuf::from("/test/file.txt")));
         assert_eq!(options.chunk_size, Some(2048));
         assert_eq!(options.strategy, UploadStrategy::Chunked);
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
         assert_eq!(options.timeout, Some(600));
     }
 

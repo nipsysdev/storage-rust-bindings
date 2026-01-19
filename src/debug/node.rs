@@ -1,7 +1,7 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
-use crate::ffi::{codex_debug, codex_log_level, free_c_string, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
+use crate::ffi::{free_c_string, storage_debug, storage_log_level, string_to_c_string};
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 use serde::{Deserialize, Serialize};
 
@@ -117,15 +117,15 @@ impl Default for DebugInfo {
     }
 }
 
-pub async fn debug(node: &CodexNode) -> Result<DebugInfo> {
+pub async fn debug(node: &StorageNode) -> Result<DebugInfo> {
     let node = node.clone();
 
     tokio::task::spawn_blocking(move || {
         let future = CallbackFuture::new();
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_debug(
+                storage_debug(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -134,20 +134,21 @@ pub async fn debug(node: &CodexNode) -> Result<DebugInfo> {
         });
 
         if result != 0 {
-            return Err(CodexError::library_error("Failed to get debug info"));
+            return Err(StorageError::library_error("Failed to get debug info"));
         }
 
         let debug_json = future.wait()?;
 
-        let debug_info: DebugInfo = serde_json::from_str(&debug_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse debug info: {}", e)))?;
+        let debug_info: DebugInfo = serde_json::from_str(&debug_json).map_err(|e| {
+            StorageError::library_error(format!("Failed to parse debug info: {}", e))
+        })?;
 
         Ok(debug_info)
     })
     .await?
 }
 
-pub async fn update_log_level(node: &CodexNode, log_level: LogLevel) -> Result<()> {
+pub async fn update_log_level(node: &StorageNode, log_level: LogLevel) -> Result<()> {
     let node = node.clone();
 
     tokio::task::spawn_blocking(move || {
@@ -155,9 +156,9 @@ pub async fn update_log_level(node: &CodexNode, log_level: LogLevel) -> Result<(
 
         let c_log_level = string_to_c_string(&log_level.to_string());
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_log_level(
+                storage_log_level(
                     ctx as *mut _,
                     c_log_level,
                     Some(c_callback),
@@ -171,7 +172,7 @@ pub async fn update_log_level(node: &CodexNode, log_level: LogLevel) -> Result<(
         }
 
         if result != 0 {
-            return Err(CodexError::library_error("Failed to update log level"));
+            return Err(StorageError::library_error("Failed to update log level"));
         }
 
         future.wait()?;

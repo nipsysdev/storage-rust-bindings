@@ -1,17 +1,17 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
-use crate::ffi::{codex_peer_debug, codex_peer_id, free_c_string, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
+use crate::ffi::{free_c_string, storage_peer_debug, storage_peer_id, string_to_c_string};
+use crate::node::lifecycle::StorageNode;
 use crate::p2p::types::PeerRecord;
 use libc::c_void;
 
-pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
+pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerRecord> {
     let node = node.clone();
     let peer_id = peer_id.to_string();
 
     tokio::task::spawn_blocking(move || {
         if peer_id.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "peer_id",
                 "Peer ID cannot be empty",
             ));
@@ -19,12 +19,12 @@ pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord
 
         let future = CallbackFuture::new();
 
-        with_libcodex_lock(|| {
+        with_libstorage_lock(|| {
             let c_peer_id = string_to_c_string(&peer_id);
 
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_debug(
+                    storage_peer_debug(
                         ctx as *mut _,
                         c_peer_id,
                         Some(c_callback),
@@ -38,7 +38,7 @@ pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord
             }
 
             if result != 0 {
-                return Err(CodexError::p2p_error("Failed to get peer info"));
+                return Err(StorageError::p2p_error("Failed to get peer info"));
             }
 
             Ok(())
@@ -46,24 +46,25 @@ pub async fn get_peer_info(node: &CodexNode, peer_id: &str) -> Result<PeerRecord
 
         let peer_json = future.wait()?;
 
-        let peer: PeerRecord = serde_json::from_str(&peer_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse peer info: {}", e)))?;
+        let peer: PeerRecord = serde_json::from_str(&peer_json).map_err(|e| {
+            StorageError::library_error(format!("Failed to parse peer info: {}", e))
+        })?;
 
         Ok(peer)
     })
     .await?
 }
 
-pub async fn get_peer_id(node: &CodexNode) -> Result<String> {
+pub async fn get_peer_id(node: &StorageNode) -> Result<String> {
     let node = node.clone();
 
     tokio::task::spawn_blocking(move || {
         let future = CallbackFuture::new();
 
-        with_libcodex_lock(|| {
+        with_libstorage_lock(|| {
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_id(
+                    storage_peer_id(
                         ctx as *mut _,
                         Some(c_callback),
                         future.context_ptr() as *mut c_void,
@@ -72,7 +73,7 @@ pub async fn get_peer_id(node: &CodexNode) -> Result<String> {
             };
 
             if result != 0 {
-                return Err(CodexError::p2p_error("Failed to get peer ID"));
+                return Err(StorageError::p2p_error("Failed to get peer ID"));
             }
 
             Ok(())

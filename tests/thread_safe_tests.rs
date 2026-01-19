@@ -1,22 +1,22 @@
-use codex_bindings::{CodexConfig, CodexNode};
 use std::sync::Arc;
+use storage_bindings::{StorageConfig, StorageNode};
 use tempfile::tempdir;
 
 #[tokio::test]
 async fn test_thread_safe_node_creation() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
-    let node = CodexNode::new(config).unwrap();
+    let node = StorageNode::new(config).unwrap();
     assert!(!node.is_started());
 }
 
 #[tokio::test]
 async fn test_thread_safe_node_lifecycle() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
-    let mut node = CodexNode::new(config).unwrap();
+    let mut node = StorageNode::new(config).unwrap();
 
     node.start().unwrap();
     assert!(node.is_started());
@@ -34,9 +34,9 @@ async fn test_thread_safe_node_lifecycle() {
 #[tokio::test]
 async fn test_node_cloning() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
-    let mut node1 = CodexNode::new(config).unwrap();
+    let mut node1 = StorageNode::new(config).unwrap();
     let node2 = node1.clone();
 
     assert!(!node1.is_started());
@@ -53,9 +53,9 @@ async fn test_concurrent_access() {
     use tokio::task::JoinSet;
 
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
-    let node = Arc::new(CodexNode::new(config).unwrap());
+    let node = Arc::new(StorageNode::new(config).unwrap());
     node.start_async().await.unwrap();
 
     let mut set = JoinSet::new();
@@ -79,21 +79,21 @@ fn test_send_sync_traits() {
     fn assert_sync<T: Sync>() {}
 
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let _node = CodexNode::new(config).unwrap();
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let _node = StorageNode::new(config).unwrap();
 
-    assert_send::<CodexNode>();
-    assert_sync::<CodexNode>();
+    assert_send::<StorageNode>();
+    assert_sync::<StorageNode>();
 
-    assert_send::<Arc<CodexNode>>();
+    assert_send::<Arc<StorageNode>>();
 }
 
 #[test]
 fn test_clone_trait() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
-    let mut node1 = CodexNode::new(config).unwrap();
+    let mut node1 = StorageNode::new(config).unwrap();
     let node2 = node1.clone();
 
     assert!(!node1.is_started());
@@ -107,8 +107,8 @@ fn test_clone_trait() {
 #[tokio::test]
 async fn test_send_between_threads() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let node = CodexNode::new(config).unwrap();
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let node = StorageNode::new(config).unwrap();
 
     let result = tokio::task::spawn(async move {
         let _version = node.version().unwrap();
@@ -122,17 +122,17 @@ async fn test_send_between_threads() {
 #[tokio::test]
 async fn test_async_file_upload() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let node = Arc::new(CodexNode::new(config).unwrap());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(StorageNode::new(config).unwrap());
 
     node.start_async().await.unwrap();
 
     let file_path = temp_dir.path().join("test.txt");
-    std::fs::write(&file_path, b"Hello, Codex!").unwrap();
+    std::fs::write(&file_path, b"Hello, Storage!").unwrap();
 
-    let options = codex_bindings::UploadOptions::new().filepath(&file_path);
+    let options = storage_bindings::UploadOptions::new().filepath(&file_path);
 
-    let result = codex_bindings::upload_file(&node, options).await;
+    let result = storage_bindings::upload_file(&node, options).await;
 
     assert!(result.is_ok(), "Upload should succeed");
 
@@ -142,8 +142,8 @@ async fn test_async_file_upload() {
 #[tokio::test]
 async fn test_multiple_concurrent_operations() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let node = Arc::new(CodexNode::new(config).unwrap());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(StorageNode::new(config).unwrap());
 
     node.start_async().await.unwrap();
 
@@ -177,14 +177,14 @@ async fn test_multiple_concurrent_operations() {
 #[tokio::test]
 async fn test_shared_node_across_tasks() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
 
     struct AppState {
-        node: Arc<CodexNode>,
+        node: Arc<StorageNode>,
     }
 
     let state = AppState {
-        node: Arc::new(CodexNode::new(config).unwrap()),
+        node: Arc::new(StorageNode::new(config).unwrap()),
     };
 
     let mut handles = Vec::new();
@@ -203,7 +203,7 @@ async fn test_shared_node_across_tasks() {
 
     handles.push(tokio::task::spawn(async move {
         tokio::task::spawn_blocking(move || {
-            let mut node = CodexNode::new(CodexConfig::new()).unwrap();
+            let mut node = StorageNode::new(StorageConfig::new()).unwrap();
             node.start().unwrap();
             node
         })
@@ -221,17 +221,17 @@ async fn test_shared_node_across_tasks() {
 #[tokio::test]
 async fn test_send_future_compatibility() {
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let node = Arc::new(CodexNode::new(config).unwrap());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(StorageNode::new(config).unwrap());
 
     let future = async move {
         node.start_async().await.unwrap();
 
         let file_path = temp_dir.path().join("test.txt");
-        std::fs::write(&file_path, b"Hello, Codex!").unwrap();
+        std::fs::write(&file_path, b"Hello, Storage!").unwrap();
 
-        let options = codex_bindings::UploadOptions::new().filepath(&file_path);
-        let _result = codex_bindings::upload_file(&node, options).await.unwrap();
+        let options = storage_bindings::UploadOptions::new().filepath(&file_path);
+        let _result = storage_bindings::upload_file(&node, options).await.unwrap();
 
         "success"
     };
@@ -242,20 +242,20 @@ async fn test_send_future_compatibility() {
 
 #[tokio::test]
 async fn test_async_upload_download() {
-    use codex_bindings::{DownloadStreamOptions, UploadOptions};
+    use storage_bindings::{DownloadStreamOptions, UploadOptions};
 
     let temp_dir = tempdir().unwrap();
-    let config = CodexConfig::new().data_dir(temp_dir.path());
-    let node = Arc::new(CodexNode::new(config).unwrap());
+    let config = StorageConfig::new().data_dir(temp_dir.path());
+    let node = Arc::new(StorageNode::new(config).unwrap());
 
     node.start_async().await.unwrap();
 
     let file_path = temp_dir.path().join("test.txt");
-    let test_content = b"Hello, Codex async API!";
+    let test_content = b"Hello, Storage async API!";
     std::fs::write(&file_path, test_content).unwrap();
 
     let upload_options = UploadOptions::new().filepath(&file_path);
-    let upload_result = codex_bindings::upload_file(&node, upload_options)
+    let upload_result = storage_bindings::upload_file(&node, upload_options)
         .await
         .unwrap();
 
@@ -263,7 +263,7 @@ async fn test_async_upload_download() {
     let download_options = DownloadStreamOptions::new(&upload_result.cid).filepath(&download_path);
 
     let _download_result =
-        codex_bindings::download_stream(&node, &upload_result.cid, download_options)
+        storage_bindings::download_stream(&node, &upload_result.cid, download_options)
             .await
             .unwrap();
 

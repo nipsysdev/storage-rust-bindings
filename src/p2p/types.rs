@@ -65,12 +65,12 @@ impl PeerInfo {
 
     /// Check if the connection is inbound
     pub fn is_inbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "inbound")
+        self.direction.as_ref().is_some_and(|d| d == "inbound")
     }
 
     /// Check if the connection is outbound
     pub fn is_outbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "outbound")
+        self.direction.as_ref().is_some_and(|d| d == "outbound")
     }
 
     /// Get a human-readable latency string
@@ -278,12 +278,12 @@ impl PeerRecord {
 
     /// Check if the connection is inbound
     pub fn is_inbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "inbound")
+        self.direction.as_ref().is_some_and(|d| d == "inbound")
     }
 
     /// Check if the connection is outbound
     pub fn is_outbound(&self) -> bool {
-        self.direction.as_ref().map_or(false, |d| d == "outbound")
+        self.direction.as_ref().is_some_and(|d| d == "outbound")
     }
 }
 
@@ -365,8 +365,8 @@ mod tests {
             .connected(true)
             .direction("outbound".to_string())
             .latency(50)
-            .protocols(vec!["/codex/1.0.0".to_string()])
-            .user_agent("codex-rust-bindings/0.1.0".to_string())
+            .protocols(vec!["/storage/1.0.0".to_string()])
+            .user_agent("storage-rust-bindings/0.1.0".to_string())
             .last_seen("2023-01-01T12:00:00Z".to_string())
             .connection_duration(1800)
             .bytes_sent(1024 * 1024)
@@ -378,7 +378,7 @@ mod tests {
         assert!(peer_record.connected);
         assert_eq!(peer_record.latency_ms, Some(50));
         assert_eq!(peer_record.protocols.len(), 1);
-        assert!(peer_record.supports_protocol("/codex/1.0.0"));
+        assert!(peer_record.supports_protocol("/storage/1.0.0"));
         assert_eq!(peer_record.total_bytes(), 3 * 1024 * 1024);
         assert_eq!(peer_record.duration_string(), "30m 0s");
         assert_eq!(peer_record.bytes_string(), "3.0MB");

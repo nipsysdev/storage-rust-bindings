@@ -1,6 +1,6 @@
-//! Debug operations for Codex
+//! Debug operations for Storage
 //!
-//! This module provides comprehensive debugging and diagnostics functionality for Codex nodes.
+//! This module provides comprehensive debugging and diagnostics functionality for Storage nodes.
 //! It includes operations for getting node information, updating log levels, and peer debugging.
 //!
 //! ## Node Debugging

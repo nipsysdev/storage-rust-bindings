@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Manifest information for a stored content
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Manifest {
     /// Content ID (CID) - set separately in fetch()
     #[serde(skip)]
@@ -83,7 +83,7 @@ impl Manifest {
         if self.block_size == 0 {
             0
         } else {
-            (self.dataset_size + self.block_size - 1) / self.block_size
+            self.dataset_size.div_ceil(self.block_size)
         }
     }
 
@@ -100,11 +100,9 @@ impl Manifest {
     /// Get the file extension if this is a file
     pub fn file_extension(&self) -> Option<String> {
         if self.is_file() {
-            if let Some(dot_pos) = self.filename.rfind('.') {
-                Some(self.filename[dot_pos + 1..].to_lowercase())
-            } else {
-                None
-            }
+            self.filename
+                .rfind('.')
+                .map(|dot_pos| self.filename[dot_pos + 1..].to_lowercase())
         } else {
             None
         }
@@ -116,22 +114,8 @@ impl Manifest {
     }
 }
 
-impl Default for Manifest {
-    fn default() -> Self {
-        Self {
-            cid: String::new(),
-            tree_cid: String::new(),
-            dataset_size: 0,
-            block_size: 0,
-            filename: String::new(),
-            mimetype: String::new(),
-            protected: false,
-        }
-    }
-}
-
 /// Storage space information
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Space {
     /// Total number of blocks stored by the node
     #[serde(rename = "totalBlocks")]
@@ -223,16 +207,5 @@ impl Space {
     /// Get a human-readable string for available space
     pub fn available_string(&self) -> String {
         bytesize::ByteSize::b(self.available_bytes()).to_string()
-    }
-}
-
-impl Default for Space {
-    fn default() -> Self {
-        Self {
-            total_blocks: 0,
-            quota_max_bytes: 0,
-            quota_used_bytes: 0,
-            quota_reserved_bytes: 0,
-        }
     }
 }

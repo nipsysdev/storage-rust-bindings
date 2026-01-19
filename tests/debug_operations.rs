@@ -1,12 +1,12 @@
-//! Debug operations integration test for the Codex Rust bindings
+//! Debug operations integration test for the Storage Rust bindings
 //!
 //! This test demonstrates how to use debug operations:
 //! - Get node debug information
 //! - Update log levels
 //! - Get peer debug information
 
-use codex_bindings::debug::LogLevel;
-use codex_bindings::{CodexConfig, CodexNode};
+use storage_bindings::debug::LogLevel;
+use storage_bindings::{StorageConfig, StorageNode};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -14,29 +14,28 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();
 
-    println!("Codex Rust Bindings - Debug Operations Test");
+    println!("Storage Rust Bindings - Debug Operations Test");
     println!("===========================================");
 
     // Create a temporary directory for our test
     let temp_dir = tempdir()?;
 
-    // Create a Codex configuration
-    println!("Creating Codex configuration...");
-    let config = CodexConfig::new()
-        .log_level(codex_bindings::LogLevel::Info)
-        .data_dir(temp_dir.path().join("codex_data"))
-        .storage_quota(100 * 1024 * 1024) // 100 MB
+    // Create a Storage configuration
+    println!("Creating Storage configuration...");
+    let config = StorageConfig::new()
+        .log_level(storage_bindings::LogLevel::Info)
+        .data_dir(temp_dir.path().join("storage_data"))
         .discovery_port(8095);
 
-    // Create and start a Codex node
-    println!("Creating and starting Codex node...");
-    let mut node = CodexNode::new(config)?;
+    // Create and start a Storage node
+    println!("Creating and starting Storage node...");
+    let mut node = StorageNode::new(config)?;
     node.start()?;
     println!("Node started successfully!");
 
     // Get initial debug information
     println!("\n=== Initial Debug Information ===");
-    let debug_info = codex_bindings::debug(&node).await?;
+    let debug_info = storage_bindings::debug(&node).await?;
     println!("Peer ID: {}", debug_info.peer_id());
     println!("Addresses: {:?}", debug_info.addrs);
     println!("SPR: {}", debug_info.spr);
@@ -71,13 +70,13 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     for log_level in log_levels {
         println!("Setting log level to: {:?}", log_level);
-        let update_result = codex_bindings::update_log_level(&node, log_level).await;
+        let update_result = storage_bindings::update_log_level(&node, log_level).await;
         match update_result {
             Ok(()) => {
                 println!("  ✓ Successfully updated log level to {:?}", log_level);
 
                 // Verify the change by getting debug info again
-                let debug_info = codex_bindings::debug(&node).await?;
+                let debug_info = storage_bindings::debug(&node).await?;
                 println!("  Debug info retrieved successfully after log level change");
                 println!("  Peer ID: {}", debug_info.peer_id());
                 println!("  Address count: {}", debug_info.address_count());
@@ -89,7 +88,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Reset to Info level for further testing
-    codex_bindings::update_log_level(&node, LogLevel::Info).await?;
+    storage_bindings::update_log_level(&node, LogLevel::Info).await?;
 
     // Test peer debug information
     println!("\n=== Testing Peer Debug Information ===");
@@ -102,7 +101,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     for peer_id in test_peer_ids {
         println!("Getting debug info for peer: {}", peer_id);
-        let peer_record = codex_bindings::peer_debug(&node, peer_id).await;
+        let peer_record = storage_bindings::peer_debug(&node, peer_id).await;
         match peer_record {
             Ok(record) => {
                 println!("  ✓ Successfully retrieved peer debug info:");
@@ -143,12 +142,12 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test invalid peer ID
     println!("\n=== Testing Invalid Peer ID ===");
-    let empty_peer_result = codex_bindings::peer_debug(&node, "").await;
+    let empty_peer_result = storage_bindings::peer_debug(&node, "").await;
     assert!(empty_peer_result.is_err(), "Should fail with empty peer ID");
     println!("  ✓ Correctly failed with empty peer ID");
 
     // Test whitespace-only peer ID
-    let whitespace_peer_result = codex_bindings::peer_debug(&node, "   \t\n   ").await;
+    let whitespace_peer_result = storage_bindings::peer_debug(&node, "   \t\n   ").await;
     assert!(
         whitespace_peer_result.is_err(),
         "Should fail with whitespace-only peer ID"
@@ -157,16 +156,16 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test debug operations without starting node
     println!("\n=== Testing Debug Operations Without Starting Node ===");
-    let config2 = CodexConfig::new()
-        .log_level(codex_bindings::LogLevel::Error)
-        .data_dir(temp_dir.path().join("codex_data2"))
+    let config2 = StorageConfig::new()
+        .log_level(storage_bindings::LogLevel::Error)
+        .data_dir(temp_dir.path().join("storage_data2"))
         .discovery_port(8096);
 
-    let node2 = CodexNode::new(config2)?;
+    let node2 = StorageNode::new(config2)?;
     // Don't start the node
 
     // These should work even if the node is not started
-    let debug_info_result = codex_bindings::debug(&node2).await;
+    let debug_info_result = storage_bindings::debug(&node2).await;
     match debug_info_result {
         Ok(info) => {
             println!("  ✓ Debug info works without starting node:");
@@ -176,13 +175,13 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✗ Debug info failed without starting node: {}", e),
     }
 
-    let update_result = codex_bindings::update_log_level(&node2, LogLevel::Debug).await;
+    let update_result = storage_bindings::update_log_level(&node2, LogLevel::Debug).await;
     match update_result {
         Ok(()) => println!("  ✓ Log level update works without starting node"),
         Err(e) => println!("  ✗ Log level update failed without starting node: {}", e),
     }
 
-    let peer_debug_result = codex_bindings::peer_debug(&node2, "12D3KooWTestPeer").await;
+    let peer_debug_result = storage_bindings::peer_debug(&node2, "12D3KooWTestPeer").await;
     match peer_debug_result {
         Ok(_) => println!("  ✓ Peer debug works without starting node"),
         Err(e) => println!("  ✗ Peer debug failed without starting node: {}", e),
@@ -193,10 +192,10 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test concurrent debug operations
     println!("\n=== Testing Concurrent Debug Operations ===");
-    let debug_future1 = codex_bindings::debug(&node);
-    let debug_future2 = codex_bindings::debug(&node);
-    let peer_debug_future1 = codex_bindings::peer_debug(&node, "12D3KooWTestPeer1");
-    let peer_debug_future2 = codex_bindings::peer_debug(&node, "12D3KooWTestPeer2");
+    let debug_future1 = storage_bindings::debug(&node);
+    let debug_future2 = storage_bindings::debug(&node);
+    let peer_debug_future1 = storage_bindings::peer_debug(&node, "12D3KooWTestPeer1");
+    let peer_debug_future2 = storage_bindings::peer_debug(&node, "12D3KooWTestPeer2");
 
     let (debug_result1, debug_result2, peer_debug_result1, peer_debug_result2) = tokio::join!(
         debug_future1,
@@ -225,7 +224,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Get final debug information
     println!("\n=== Final Debug Information ===");
-    let final_debug_info = codex_bindings::debug(&node).await?;
+    let final_debug_info = storage_bindings::debug(&node).await?;
     println!("Final node state:");
     println!("  Peer ID: {}", final_debug_info.peer_id());
     println!("  Address count: {}", final_debug_info.address_count());

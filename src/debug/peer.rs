@@ -2,10 +2,10 @@
 //!
 //! This module contains peer-specific debugging operations.
 
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
-use crate::ffi::{codex_peer_debug, free_c_string, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
+use crate::ffi::{free_c_string, storage_peer_debug, string_to_c_string};
+use crate::node::lifecycle::StorageNode;
 use crate::p2p::types::PeerRecord;
 use libc::c_void;
 
@@ -13,19 +13,19 @@ use libc::c_void;
 ///
 /// # Arguments
 ///
-/// * `node` - The Codex node to use
+/// * `node` - The Storage node to use
 /// * `peer_id` - The peer ID to get debug information for
 ///
 /// # Returns
 ///
 /// Detailed peer record for debugging
-pub async fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
+pub async fn peer_debug(node: &StorageNode, peer_id: &str) -> Result<PeerRecord> {
     let node = node.clone();
     let peer_id = peer_id.to_string();
 
     tokio::task::spawn_blocking(move || {
         if peer_id.is_empty() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "peer_id",
                 "Peer ID cannot be empty",
             ));
@@ -34,13 +34,13 @@ pub async fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
         // Create a callback future for the operation
         let future = CallbackFuture::new();
 
-        with_libcodex_lock(|| {
+        with_libstorage_lock(|| {
             let c_peer_id = string_to_c_string(&peer_id);
 
             // Call the C function with the context pointer directly
             let result = unsafe {
                 node.with_ctx(|ctx| {
-                    codex_peer_debug(
+                    storage_peer_debug(
                         ctx as *mut _,
                         c_peer_id,
                         Some(c_callback),
@@ -55,7 +55,7 @@ pub async fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
             }
 
             if result != 0 {
-                return Err(CodexError::library_error("Failed to get peer debug info"));
+                return Err(StorageError::library_error("Failed to get peer debug info"));
             }
 
             Ok(())
@@ -66,7 +66,7 @@ pub async fn peer_debug(node: &CodexNode, peer_id: &str) -> Result<PeerRecord> {
 
         // Parse the peer JSON
         let peer: PeerRecord = serde_json::from_str(&peer_json).map_err(|e| {
-            CodexError::library_error(format!("Failed to parse peer debug info: {}", e))
+            StorageError::library_error(format!("Failed to parse peer debug info: {}", e))
         })?;
 
         Ok(peer)

@@ -1,6 +1,6 @@
-use codex_bindings::{
+use storage_bindings::{
     download_cancel, download_chunk, download_init, upload_cancel, upload_chunk, upload_finalize,
-    upload_init, CodexConfig, CodexNode, LogLevel, UploadOptions,
+    upload_init, LogLevel, StorageConfig, StorageNode, UploadOptions,
 };
 use tempfile::tempdir;
 
@@ -8,25 +8,25 @@ use tempfile::tempdir;
 async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     let _ = env_logger::try_init();
 
-    println!("Codex Rust Bindings - Chunk Operations Test");
+    println!("Storage Rust Bindings - Chunk Operations Test");
     println!("===========================================");
 
     let temp_dir = tempdir()?;
 
-    println!("Creating Codex configuration...");
-    let config = CodexConfig::new()
+    println!("Creating Storage configuration...");
+    let config = StorageConfig::new()
         .log_level(LogLevel::Error)
-        .data_dir(temp_dir.path().join("codex_data"))
+        .data_dir(temp_dir.path().join("storage_data"))
         .storage_quota(100 * 1024 * 1024)
         .block_retries(3000)
         .discovery_port(8094);
 
-    println!("Creating and starting Codex node...");
-    let mut node = CodexNode::new(config)?;
+    println!("Creating and starting Storage node...");
+    let mut node = StorageNode::new(config)?;
     node.start()?;
     println!("Node started successfully!");
 
-    let test_data = b"Hello, Codex! This is a test file for chunk-based upload. ";
+    let test_data = b"Hello, Storage! This is a test file for chunk-based upload. ";
     let test_data2 = b"It contains multiple chunks that will be uploaded separately. ";
     let test_data3 = b"This demonstrates the chunk-based upload functionality.";
 
@@ -62,11 +62,11 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("  CID: {}", cid);
 
     println!("\n=== Verifying Upload ===");
-    let exists = codex_bindings::exists(&node, &cid).await?;
+    let exists = storage_bindings::exists(&node, &cid).await?;
     assert!(exists, "Content should exist after upload");
     println!("Content exists: {}", exists);
 
-    let manifest = codex_bindings::fetch(&node, &cid).await?;
+    let manifest = storage_bindings::fetch(&node, &cid).await?;
     println!("Manifest information:");
     println!("  CID: {}", manifest.cid);
     println!("  Size: {} bytes", manifest.dataset_size);
@@ -76,7 +76,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== Chunk-based Download ===");
 
     println!("Initializing download...");
-    let download_options = codex_bindings::DownloadOptions::new(&cid);
+    let download_options = storage_bindings::DownloadOptions::new(&cid);
     download_init(&node, &cid, &download_options).await?;
     println!("Download initialized for CID: {}", cid);
 
@@ -180,7 +180,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Small chunks upload finalized: {}", small_cid);
 
     println!("\n=== Final Storage Information ===");
-    let space_info = codex_bindings::space(&node).await?;
+    let space_info = storage_bindings::space(&node).await?;
     println!("Storage usage:");
     println!("  Used: {} bytes", space_info.quota_used_bytes);
     println!(
@@ -189,7 +189,7 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     );
     println!("  Total blocks: {}", space_info.total_blocks);
 
-    let manifests = codex_bindings::manifests(&node).await?;
+    let manifests = storage_bindings::manifests(&node).await?;
     println!("Total manifests: {}", manifests.len());
     assert!(
         manifests.len() >= 2,

@@ -1,14 +1,14 @@
-//! Basic usage integration test for the Codex Rust bindings
+//! Basic usage integration test for the Storage Rust bindings
 //!
-//! This test demonstrates how to create a Codex node, start it,
+//! This test demonstrates how to create a Storage node, start it,
 //! upload a file, download it, and then clean up.
 
-use codex_bindings::{
-    download_stream, upload_file, CodexConfig, CodexNode, DownloadStreamOptions, LogLevel,
-    UploadOptions,
-};
 use std::fs::File;
 use std::io::Write;
+use storage_bindings::{
+    download_stream, upload_file, DownloadStreamOptions, LogLevel, StorageConfig, StorageNode,
+    UploadOptions,
+};
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -16,7 +16,7 @@ async fn test_basic_usage() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();
 
-    println!("Codex Rust Bindings - Basic Usage Test");
+    println!("Storage Rust Bindings - Basic Usage Test");
     println!("=====================================");
 
     // Create a temporary directory for our test
@@ -27,25 +27,25 @@ async fn test_basic_usage() -> Result<(), Box<dyn std::error::Error>> {
     // Create a test file to upload
     println!("Creating test file...");
     let mut file = File::create(&file_path)?;
-    file.write_all(b"Hello, Codex! This is a test file for the Rust bindings.")?;
+    file.write_all(b"Hello, Storage! This is a test file for the Rust bindings.")?;
     file.sync_all()?;
     println!("Test file created at: {}", file_path.display());
 
-    // Create a Codex configuration
-    println!("Creating Codex configuration...");
-    let config = CodexConfig::new()
+    // Create a Storage configuration
+    println!("Creating Storage configuration...");
+    let config = StorageConfig::new()
         .log_level(LogLevel::Info)
-        .data_dir(temp_dir.path().join("codex_data"))
+        .data_dir(temp_dir.path().join("storage_data"))
         .storage_quota(100 * 1024 * 1024) // 100 MB
         .max_peers(50)
         .discovery_port(8090);
 
-    // Create a new Codex node
-    println!("Creating Codex node...");
-    let mut node = CodexNode::new(config)?;
+    // Create a new Storage node
+    println!("Creating Storage node...");
+    let mut node = StorageNode::new(config)?;
 
     // Start the node
-    println!("Starting Codex node...");
+    println!("Starting Storage node...");
     node.start()?;
     println!("Node started successfully!");
 
@@ -104,11 +104,11 @@ async fn test_basic_usage() -> Result<(), Box<dyn std::error::Error>> {
     println!("✓ Content verification successful!");
 
     // Stop and destroy the node
-    println!("Stopping Codex node...");
+    println!("Stopping Storage node...");
     node.stop()?;
     println!("Node stopped.");
 
-    println!("Destroying Codex node...");
+    println!("Destroying Storage node...");
     node.destroy()?;
     println!("Node destroyed.");
 

@@ -1,6 +1,6 @@
-//! P2P operations for Codex
+//! P2P operations for Storage
 //!
-//! This module provides functionality for connecting to peers in the Codex network.
+//! This module provides functionality for connecting to peers in the Storage network.
 
 pub mod connection;
 pub mod discovery;

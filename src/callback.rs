@@ -1,4 +1,4 @@
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use crate::ffi::{c_str_to_string, CallbackReturn};
 use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
@@ -7,7 +7,10 @@ use std::task::{Context, Poll, Waker};
 use std::thread;
 use std::time::Duration;
 
-static LIBCODEX_MUTEX: Mutex<()> = Mutex::new(());
+/// Type alias for the progress callback function type
+type ProgressCallback = Box<dyn Fn(usize, Option<&[u8]>) + Send>;
+
+static LIBSTORAGE_MUTEX: Mutex<()> = Mutex::new(());
 
 static CALLBACK_REGISTRY: LazyLock<Mutex<HashMap<u64, Arc<CallbackContext>>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
@@ -16,9 +19,15 @@ static NEXT_CALLBACK_ID: LazyLock<Mutex<u64>> = LazyLock::new(|| Mutex::new(1));
 pub struct CallbackContext {
     result: Mutex<Option<Result<String>>>,
     waker: Mutex<Option<Waker>>,
-    progress_callback: Mutex<Option<Box<dyn Fn(usize, Option<&[u8]>) + Send>>>,
+    progress_callback: Mutex<Option<ProgressCallback>>,
     completed: Mutex<bool>,
     id: u64,
+}
+
+impl Default for CallbackContext {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CallbackContext {
@@ -61,7 +70,17 @@ impl CallbackContext {
         }
     }
 
-    pub unsafe fn handle_callback(&self, ret: i32, msg: *mut c_char, len: size_t) {
+    /// Handles a callback from the C library
+    ///
+    /// # Safety
+    ///
+    /// The `msg` pointer must be either:
+    /// - A valid pointer to a null-terminated C string (for Ok/Error callbacks)
+    /// - A valid pointer to a byte array of length `len` (for Progress callbacks)
+    /// - A null pointer (which will be handled appropriately)
+    ///
+    /// The memory pointed to by `msg` must remain valid for the duration of this call.
+    pub unsafe fn handle_callback(&self, ret: i32, msg: *const c_char, len: size_t) {
         match CallbackReturn::from(ret) {
             CallbackReturn::Ok => {
                 let message = unsafe {
@@ -89,7 +108,7 @@ impl CallbackContext {
                     }
                 };
 
-                *self.result.lock().unwrap() = Some(Err(CodexError::library_error(message)));
+                *self.result.lock().unwrap() = Some(Err(StorageError::library_error(message)));
                 *self.completed.lock().unwrap() = true;
 
                 if let Some(waker) = self.waker.lock().unwrap().take() {
@@ -124,7 +143,7 @@ impl CallbackContext {
         if let Some(result) = self.get_result() {
             result
         } else {
-            Err(CodexError::timeout("callback operation"))
+            Err(StorageError::timeout("callback operation"))
         }
     }
 }
@@ -139,6 +158,12 @@ impl Drop for CallbackContext {
 
 pub struct CallbackFuture {
     pub(crate) context: Arc<CallbackContext>,
+}
+
+impl Default for CallbackFuture {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CallbackFuture {
@@ -185,16 +210,35 @@ impl std::future::Future for CallbackFuture {
 
 unsafe impl Send for CallbackFuture {}
 
-pub fn with_libcodex_lock<F, R>(f: F) -> R
+pub fn with_libstorage_lock<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let _lock = LIBCODEX_MUTEX.lock().unwrap();
+    let _lock = LIBSTORAGE_MUTEX.lock().unwrap();
     f()
 }
 
+/// C callback function that is called from the libstorage library
+///
+/// # Safety
+///
+/// The `msg` pointer must be either:
+/// - A valid pointer to a null-terminated C string (for Ok/Error callbacks)
+/// - A valid pointer to a byte array of length `len` (for Progress callbacks)
+/// - A null pointer (which will be handled appropriately)
+///
+/// The `resp` pointer must be either:
+/// - A valid pointer to a u64 callback ID that was previously registered
+/// - A null pointer (which will cause the function to return early)
+///
+/// The memory pointed to by `msg` and `resp` must remain valid for the duration of this call.
 #[no_mangle]
-pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, resp: *mut c_void) {
+pub unsafe extern "C" fn c_callback(
+    ret: c_int,
+    msg: *const c_char,
+    len: size_t,
+    resp: *mut c_void,
+) {
     if resp.is_null() {
         return;
     }
@@ -220,17 +264,6 @@ pub unsafe extern "C" fn c_callback(ret: c_int, msg: *mut c_char, len: size_t, r
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
-    use std::task::Wake;
-
-    struct TestWaker {
-        woken: AtomicBool,
-    }
-
-    impl Wake for TestWaker {
-        fn wake(self: Arc<Self>) {
-            self.woken.store(true, Ordering::SeqCst);
-        }
-    }
 
     #[test]
     fn test_callback_context_creation() {
@@ -259,12 +292,12 @@ mod tests {
         assert!(result.is_err());
 
         match result {
-            Err(CodexError::LibraryError { message, .. }) => {
+            Err(StorageError::LibraryError { message, .. }) => {
                 assert_eq!(message, "Unknown error");
             }
             other => {
                 assert!(
-                    matches!(other, Err(CodexError::LibraryError { .. })),
+                    matches!(other, Err(StorageError::LibraryError { .. })),
                     "Expected LibraryError with message 'Unknown error', got: {:?}",
                     other
                 );

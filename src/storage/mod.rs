@@ -1,4 +1,4 @@
-//! Storage management operations for Codex
+//! Storage management operations for Storage
 //!
 //! This module provides core storage functionality that directly maps to the C API.
 //! It includes operations for listing manifests, managing storage space, and basic

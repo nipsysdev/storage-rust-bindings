@@ -1,7 +1,7 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
-use crate::ffi::{codex_storage_list, codex_storage_space};
-use crate::node::lifecycle::CodexNode;
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
+use crate::ffi::{storage_list, storage_space};
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 use serde::{Deserialize, Serialize};
 
@@ -41,15 +41,15 @@ pub struct Space {
     pub quota_reserved_bytes: u64,
 }
 
-pub async fn manifests(node: &CodexNode) -> Result<Vec<Manifest>> {
+pub async fn manifests(node: &StorageNode) -> Result<Vec<Manifest>> {
     let node = node.clone();
 
     tokio::task::spawn_blocking(move || {
         let future = CallbackFuture::new();
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_list(
+                storage_list(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -58,7 +58,7 @@ pub async fn manifests(node: &CodexNode) -> Result<Vec<Manifest>> {
         });
 
         if result != 0 {
-            return Err(CodexError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "manifests",
                 "Failed to list manifests",
             ));
@@ -67,7 +67,9 @@ pub async fn manifests(node: &CodexNode) -> Result<Vec<Manifest>> {
         let manifests_json = future.wait()?;
 
         let manifests_with_cid: Vec<ManifestWithCid> = serde_json::from_str(&manifests_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse manifests: {}", e)))?;
+            .map_err(|e| {
+                StorageError::library_error(format!("Failed to parse manifests: {}", e))
+            })?;
 
         let manifests: Vec<Manifest> = manifests_with_cid
             .into_iter()
@@ -83,15 +85,15 @@ pub async fn manifests(node: &CodexNode) -> Result<Vec<Manifest>> {
     .await?
 }
 
-pub async fn space(node: &CodexNode) -> Result<Space> {
+pub async fn space(node: &StorageNode) -> Result<Space> {
     let node = node.clone();
 
     tokio::task::spawn_blocking(move || {
         let future = CallbackFuture::new();
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
-                codex_storage_space(
+                storage_space(
                     ctx as *mut _,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -100,7 +102,7 @@ pub async fn space(node: &CodexNode) -> Result<Space> {
         });
 
         if result != 0 {
-            return Err(CodexError::storage_error(
+            return Err(StorageError::storage_operation_error(
                 "space",
                 "Failed to get storage space",
             ));
@@ -108,8 +110,9 @@ pub async fn space(node: &CodexNode) -> Result<Space> {
 
         let space_json = future.wait()?;
 
-        let space: Space = serde_json::from_str(&space_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse space info: {}", e)))?;
+        let space: Space = serde_json::from_str(&space_json).map_err(|e| {
+            StorageError::library_error(format!("Failed to parse space info: {}", e))
+        })?;
 
         Ok(space)
     })

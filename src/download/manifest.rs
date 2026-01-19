@@ -1,28 +1,31 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::download::types::Manifest;
-use crate::error::{CodexError, Result};
-use crate::ffi::{codex_download_manifest, free_c_string, string_to_c_string};
-use crate::node::lifecycle::CodexNode;
+use crate::error::{Result, StorageError};
+use crate::ffi::{free_c_string, storage_download_manifest, string_to_c_string};
+use crate::node::lifecycle::StorageNode;
 use libc::c_void;
 
-pub async fn download_manifest(node: &CodexNode, cid: &str) -> Result<Manifest> {
+pub async fn download_manifest(node: &StorageNode, cid: &str) -> Result<Manifest> {
     let node = node.clone();
     let cid = cid.to_string();
 
     tokio::task::spawn_blocking(move || {
         if cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         let future = CallbackFuture::new();
 
         let context_ptr = future.context_ptr() as *mut c_void;
 
-        let result = with_libcodex_lock(|| unsafe {
+        let result = with_libstorage_lock(|| unsafe {
             node.with_ctx(|ctx| {
                 let c_cid = string_to_c_string(&cid);
                 let result =
-                    codex_download_manifest(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+                    storage_download_manifest(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
                 free_c_string(c_cid);
 
@@ -31,13 +34,13 @@ pub async fn download_manifest(node: &CodexNode, cid: &str) -> Result<Manifest> 
         });
 
         if result != 0 {
-            return Err(CodexError::download_error("Failed to download manifest"));
+            return Err(StorageError::download_error("Failed to download manifest"));
         }
 
         let manifest_json = future.wait()?;
 
         let manifest: Manifest = serde_json::from_str(&manifest_json)
-            .map_err(|e| CodexError::library_error(format!("Failed to parse manifest: {}", e)))?;
+            .map_err(|e| StorageError::library_error(format!("Failed to parse manifest: {}", e)))?;
 
         Ok(manifest)
     })

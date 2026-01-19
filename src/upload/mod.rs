@@ -1,6 +1,6 @@
-//! Upload operations for Codex
+//! Upload operations for Storage
 //!
-//! This module provides comprehensive upload functionality for the Codex distributed storage network.
+//! This module provides comprehensive upload functionality for the Storage distributed storage network.
 //! It supports both high-level and low-level upload operations, streaming uploads, and progress tracking.
 //!
 //! ## High-Level Operations

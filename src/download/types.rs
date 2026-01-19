@@ -1,6 +1,6 @@
 //! Types for download operations
 
-use crate::error::{CodexError, Result};
+use crate::error::{Result, StorageError};
 use serde::{Deserialize, Serialize};
 use std::io::Write;
 use std::path::PathBuf;
@@ -160,12 +160,15 @@ impl DownloadOptions {
     /// Validate the download options
     pub fn validate(&self) -> Result<()> {
         if self.cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         if let Some(chunk_size) = self.chunk_size {
             if chunk_size == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "chunk_size",
                     "Chunk size must be greater than 0",
                 ));
@@ -174,7 +177,7 @@ impl DownloadOptions {
 
         if let Some(timeout) = self.timeout {
             if timeout == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "timeout",
                     "Timeout must be greater than 0",
                 ));
@@ -320,11 +323,14 @@ impl DownloadStreamOptions {
     /// Validate the download stream options
     pub fn validate(&self) -> Result<()> {
         if self.cid.is_empty() {
-            return Err(CodexError::invalid_parameter("cid", "CID cannot be empty"));
+            return Err(StorageError::invalid_parameter(
+                "cid",
+                "CID cannot be empty",
+            ));
         }
 
         if self.filepath.is_none() && self.writer.is_none() {
-            return Err(CodexError::invalid_parameter(
+            return Err(StorageError::invalid_parameter(
                 "filepath/writer",
                 "Either filepath or writer must be specified",
             ));
@@ -332,7 +338,7 @@ impl DownloadStreamOptions {
 
         if let Some(chunk_size) = self.chunk_size {
             if chunk_size == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "chunk_size",
                     "Chunk size must be greater than 0",
                 ));
@@ -341,7 +347,7 @@ impl DownloadStreamOptions {
 
         if let Some(timeout) = self.timeout {
             if timeout == 0 {
-                return Err(CodexError::invalid_parameter(
+                return Err(StorageError::invalid_parameter(
                     "timeout",
                     "Timeout must be greater than 0",
                 ));
@@ -455,7 +461,7 @@ mod tests {
         assert_eq!(options.cid, "QmExample");
         assert_eq!(options.chunk_size, Some(2048));
         assert_eq!(options.timeout, Some(600));
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
     }
 
     #[test]
@@ -493,7 +499,7 @@ mod tests {
         assert_eq!(options.dataset_size, Some(1024));
         assert!(!options.dataset_size_auto);
         assert_eq!(options.timeout, Some(600));
-        assert_eq!(options.verify, false);
+        assert!(!options.verify);
     }
 
     #[test]

@@ -1,10 +1,10 @@
 use thiserror::Error;
 
-pub type Result<T> = std::result::Result<T, CodexError>;
+pub type Result<T> = std::result::Result<T, StorageError>;
 
 #[derive(Error, Debug)]
-pub enum CodexError {
-    #[error("Codex library error: {message}")]
+pub enum StorageError {
+    #[error("Storage library error: {message}")]
     LibraryError { message: String },
 
     #[error("Node operation failed: {operation} - {message}")]
@@ -50,82 +50,134 @@ pub enum CodexError {
     JoinError(#[from] tokio::task::JoinError),
 }
 
-impl CodexError {
+impl StorageError {
     pub fn library_error(message: impl Into<String>) -> Self {
-        CodexError::LibraryError {
+        StorageError::LibraryError {
             message: message.into(),
         }
     }
 
     pub fn node_error(operation: impl Into<String>, message: impl Into<String>) -> Self {
-        CodexError::NodeError {
+        StorageError::NodeError {
             operation: operation.into(),
             message: message.into(),
         }
     }
 
     pub fn upload_error(message: impl Into<String>) -> Self {
-        CodexError::UploadError {
+        StorageError::UploadError {
             message: message.into(),
         }
     }
 
     pub fn download_error(message: impl Into<String>) -> Self {
-        CodexError::DownloadError {
+        StorageError::DownloadError {
             message: message.into(),
         }
     }
 
-    pub fn storage_error(operation: impl Into<String>, message: impl Into<String>) -> Self {
-        CodexError::StorageError {
+    pub fn storage_operation_error(
+        operation: impl Into<String>,
+        message: impl Into<String>,
+    ) -> Self {
+        StorageError::StorageError {
             operation: operation.into(),
             message: message.into(),
         }
     }
 
     pub fn p2p_error(message: impl Into<String>) -> Self {
-        CodexError::P2PError {
+        StorageError::P2PError {
             message: message.into(),
         }
     }
 
     pub fn config_error(message: impl Into<String>) -> Self {
-        CodexError::ConfigError {
+        StorageError::ConfigError {
             message: message.into(),
         }
     }
 
     pub fn invalid_parameter(parameter: impl Into<String>, message: impl Into<String>) -> Self {
-        CodexError::InvalidParameter {
+        StorageError::InvalidParameter {
             parameter: parameter.into(),
             message: message.into(),
         }
     }
 
     pub fn timeout(operation: impl Into<String>) -> Self {
-        CodexError::Timeout {
+        StorageError::Timeout {
             operation: operation.into(),
         }
     }
 
     pub fn cancelled(operation: impl Into<String>) -> Self {
-        CodexError::Cancelled {
+        StorageError::Cancelled {
             operation: operation.into(),
         }
     }
 
     pub fn null_pointer(context: impl Into<String>) -> Self {
-        CodexError::NullPointer {
+        StorageError::NullPointer {
             context: context.into(),
         }
     }
 }
 
-pub fn from_c_error(code: i32, message: &str) -> CodexError {
+pub fn from_c_error(code: i32, message: &str) -> StorageError {
     match code {
-        0 => CodexError::library_error(format!("Unexpected success with message: {}", message)),
-        1 => CodexError::library_error(message),
-        _ => CodexError::library_error(format!("Unknown error code {}: {}", code, message)),
+        0 => StorageError::library_error(format!("Unexpected success with message: {}", message)),
+        1 => StorageError::library_error(message),
+        _ => StorageError::library_error(format!("Unknown error code {}: {}", code, message)),
+    }
+}
+
+impl Clone for StorageError {
+    fn clone(&self) -> Self {
+        match self {
+            StorageError::LibraryError { message } => StorageError::LibraryError {
+                message: message.clone(),
+            },
+            StorageError::NodeError { operation, message } => StorageError::NodeError {
+                operation: operation.clone(),
+                message: message.clone(),
+            },
+            StorageError::UploadError { message } => StorageError::UploadError {
+                message: message.clone(),
+            },
+            StorageError::DownloadError { message } => StorageError::DownloadError {
+                message: message.clone(),
+            },
+            StorageError::StorageError { operation, message } => StorageError::StorageError {
+                operation: operation.clone(),
+                message: message.clone(),
+            },
+            StorageError::P2PError { message } => StorageError::P2PError {
+                message: message.clone(),
+            },
+            StorageError::ConfigError { message } => StorageError::ConfigError {
+                message: message.clone(),
+            },
+            StorageError::InvalidParameter { parameter, message } => {
+                StorageError::InvalidParameter {
+                    parameter: parameter.clone(),
+                    message: message.clone(),
+                }
+            }
+            StorageError::Timeout { operation } => StorageError::Timeout {
+                operation: operation.clone(),
+            },
+            StorageError::Cancelled { operation } => StorageError::Cancelled {
+                operation: operation.clone(),
+            },
+            StorageError::Io(_) => StorageError::library_error("I/O error"),
+            StorageError::Json(_) => StorageError::library_error("JSON error"),
+            StorageError::Utf8(_) => StorageError::library_error("UTF-8 error"),
+            StorageError::NullPointer { context } => StorageError::NullPointer {
+                context: context.clone(),
+            },
+            StorageError::JoinError(_) => StorageError::library_error("Task join error"),
+        }
     }
 }
 
@@ -135,72 +187,25 @@ mod tests {
 
     #[test]
     fn test_error_creation() {
-        let err = CodexError::library_error("Test error");
-        assert!(matches!(err, CodexError::LibraryError { .. }));
+        let err = StorageError::library_error("Test error");
+        assert!(matches!(err, StorageError::LibraryError { .. }));
 
-        let err = CodexError::node_error("start", "Failed to start");
-        assert!(matches!(err, CodexError::NodeError { .. }));
+        let err = StorageError::node_error("start", "Failed to start");
+        assert!(matches!(err, StorageError::NodeError { .. }));
 
-        let err = CodexError::upload_error("Upload failed");
-        assert!(matches!(err, CodexError::UploadError { .. }));
+        let err = StorageError::upload_error("Upload failed");
+        assert!(matches!(err, StorageError::UploadError { .. }));
     }
 
     #[test]
     fn test_error_display() {
-        let err = CodexError::library_error("Test error");
-        assert_eq!(err.to_string(), "Codex library error: Test error");
+        let err = StorageError::library_error("Test error");
+        assert_eq!(err.to_string(), "Storage library error: Test error");
 
-        let err = CodexError::node_error("start", "Failed to start");
+        let err = StorageError::node_error("start", "Failed to start");
         assert_eq!(
             err.to_string(),
             "Node operation failed: start - Failed to start"
         );
-    }
-}
-
-impl Clone for CodexError {
-    fn clone(&self) -> Self {
-        match self {
-            CodexError::LibraryError { message } => CodexError::LibraryError {
-                message: message.clone(),
-            },
-            CodexError::NodeError { operation, message } => CodexError::NodeError {
-                operation: operation.clone(),
-                message: message.clone(),
-            },
-            CodexError::UploadError { message } => CodexError::UploadError {
-                message: message.clone(),
-            },
-            CodexError::DownloadError { message } => CodexError::DownloadError {
-                message: message.clone(),
-            },
-            CodexError::StorageError { operation, message } => CodexError::StorageError {
-                operation: operation.clone(),
-                message: message.clone(),
-            },
-            CodexError::P2PError { message } => CodexError::P2PError {
-                message: message.clone(),
-            },
-            CodexError::ConfigError { message } => CodexError::ConfigError {
-                message: message.clone(),
-            },
-            CodexError::InvalidParameter { parameter, message } => CodexError::InvalidParameter {
-                parameter: parameter.clone(),
-                message: message.clone(),
-            },
-            CodexError::Timeout { operation } => CodexError::Timeout {
-                operation: operation.clone(),
-            },
-            CodexError::Cancelled { operation } => CodexError::Cancelled {
-                operation: operation.clone(),
-            },
-            CodexError::Io(_) => CodexError::library_error("I/O error"),
-            CodexError::Json(_) => CodexError::library_error("JSON error"),
-            CodexError::Utf8(_) => CodexError::library_error("UTF-8 error"),
-            CodexError::NullPointer { context } => CodexError::NullPointer {
-                context: context.clone(),
-            },
-            CodexError::JoinError(_) => CodexError::library_error("Task join error"),
-        }
     }
 }

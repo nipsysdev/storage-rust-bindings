@@ -1,40 +1,41 @@
-use crate::callback::{c_callback, with_libcodex_lock, CallbackFuture};
-use crate::error::{CodexError, Result};
+use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
+use crate::error::{Result, StorageError};
 use crate::ffi::{
-    codex_close, codex_destroy, codex_new, codex_peer_id, codex_repo, codex_revision, codex_spr,
-    codex_start, codex_stop, codex_version, free_c_string, string_to_c_string,
+    free_c_string, storage_close, storage_destroy, storage_new, storage_peer_id, storage_repo,
+    storage_revision, storage_spr, storage_start, storage_stop, storage_version,
+    string_to_c_string,
 };
-use crate::node::config::CodexConfig;
+use crate::node::config::StorageConfig;
 use libc::c_void;
 use std::ptr;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
-pub struct CodexNode {
-    inner: Arc<Mutex<CodexNodeInner>>,
+pub struct StorageNode {
+    inner: Arc<Mutex<StorageNodeInner>>,
 }
 
-struct CodexNodeInner {
+struct StorageNodeInner {
     ctx: *mut c_void,
     started: bool,
 }
 
-unsafe impl Send for CodexNodeInner {}
-unsafe impl Sync for CodexNodeInner {}
+unsafe impl Send for StorageNodeInner {}
+unsafe impl Sync for StorageNodeInner {}
 
-unsafe impl Send for CodexNode {}
-unsafe impl Sync for CodexNode {}
+unsafe impl Send for StorageNode {}
+unsafe impl Sync for StorageNode {}
 
-impl CodexNode {
-    pub fn new(config: CodexConfig) -> Result<Self> {
-        with_libcodex_lock(|| {
+impl StorageNode {
+    pub fn new(config: StorageConfig) -> Result<Self> {
+        with_libstorage_lock(|| {
             let json_config = config.to_json()?;
             let c_json_config = string_to_c_string(&json_config);
 
             let future = CallbackFuture::new();
 
             let node_ctx = unsafe {
-                let node_ctx = codex_new(
+                let node_ctx = storage_new(
                     c_json_config,
                     Some(c_callback),
                     future.context_ptr() as *mut c_void,
@@ -43,7 +44,7 @@ impl CodexNode {
                 free_c_string(c_json_config);
 
                 if node_ctx.is_null() {
-                    return Err(CodexError::node_error("new", "Failed to create node"));
+                    return Err(StorageError::node_error("new", "Failed to create node"));
                 }
 
                 node_ctx
@@ -51,8 +52,8 @@ impl CodexNode {
 
             let _result = future.wait()?;
 
-            Ok(CodexNode {
-                inner: Arc::new(Mutex::new(CodexNodeInner {
+            Ok(StorageNode {
+                inner: Arc::new(Mutex::new(StorageNodeInner {
                     ctx: node_ctx,
                     started: false,
                 })),
@@ -63,13 +64,13 @@ impl CodexNode {
     pub fn start(&mut self) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         if inner.started {
-            return Err(CodexError::node_error("start", "Node is already started"));
+            return Err(StorageError::node_error("start", "Node is already started"));
         }
 
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_start(
+            storage_start(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -77,7 +78,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("start", "Failed to start node"));
+            return Err(StorageError::node_error("start", "Failed to start node"));
         }
 
         let _result = future.wait()?;
@@ -93,7 +94,7 @@ impl CodexNode {
             {
                 let inner = node.inner.lock().unwrap();
                 if inner.started {
-                    return Err(CodexError::node_error(
+                    return Err(StorageError::node_error(
                         "start_async_send",
                         "Node is already started",
                     ));
@@ -107,11 +108,12 @@ impl CodexNode {
                 inner.ctx as *mut _
             };
 
-            let result =
-                unsafe { codex_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+            let result = unsafe {
+                storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void)
+            };
 
             if result != 0 {
-                return Err(CodexError::node_error(
+                return Err(StorageError::node_error(
                     "start_async_send",
                     "Failed to start node",
                 ));
@@ -132,13 +134,13 @@ impl CodexNode {
     pub fn stop(&mut self) -> Result<()> {
         let mut inner = self.inner.lock().unwrap();
         if !inner.started {
-            return Err(CodexError::node_error("stop", "Node is not started"));
+            return Err(StorageError::node_error("stop", "Node is not started"));
         }
 
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_stop(
+            storage_stop(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -146,7 +148,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("stop", "Failed to stop node"));
+            return Err(StorageError::node_error("stop", "Failed to stop node"));
         }
 
         inner.started = false;
@@ -160,7 +162,7 @@ impl CodexNode {
             {
                 let inner = node.inner.lock().unwrap();
                 if !inner.started {
-                    return Err(CodexError::node_error(
+                    return Err(StorageError::node_error(
                         "stop_async_send",
                         "Node is not started",
                     ));
@@ -175,10 +177,10 @@ impl CodexNode {
             };
 
             let result =
-                unsafe { codex_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+                unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
             if result != 0 {
-                return Err(CodexError::node_error(
+                return Err(StorageError::node_error(
                     "stop_async_send",
                     "Failed to stop node",
                 ));
@@ -198,7 +200,7 @@ impl CodexNode {
 
     pub fn destroy(self) -> Result<()> {
         if Arc::strong_count(&self.inner) != 1 {
-            return Err(CodexError::node_error(
+            return Err(StorageError::node_error(
                 "destroy",
                 "Cannot destroy: multiple references exist",
             ));
@@ -206,13 +208,13 @@ impl CodexNode {
 
         let mut inner = self.inner.lock().unwrap();
         if inner.started {
-            return Err(CodexError::node_error("destroy", "Node is still started"));
+            return Err(StorageError::node_error("destroy", "Node is still started"));
         }
 
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_close(
+            storage_close(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -220,12 +222,12 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("destroy", "Failed to close node"));
+            return Err(StorageError::node_error("destroy", "Failed to close node"));
         }
 
         future.wait()?;
 
-        unsafe { codex_destroy(inner.ctx as *mut _, None, ptr::null_mut()) };
+        unsafe { storage_destroy(inner.ctx as *mut _, None, ptr::null_mut()) };
 
         inner.ctx = ptr::null_mut();
         Ok(())
@@ -237,7 +239,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_version(
+            storage_version(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -245,7 +247,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("version", "Failed to get version"));
+            return Err(StorageError::node_error("version", "Failed to get version"));
         }
 
         let version = future.wait()?;
@@ -259,7 +261,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_revision(
+            storage_revision(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -267,7 +269,10 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("revision", "Failed to get revision"));
+            return Err(StorageError::node_error(
+                "revision",
+                "Failed to get revision",
+            ));
         }
 
         let revision = future.wait()?;
@@ -281,7 +286,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_repo(
+            storage_repo(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -289,7 +294,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("repo", "Failed to get repo path"));
+            return Err(StorageError::node_error("repo", "Failed to get repo path"));
         }
 
         let repo = future.wait()?;
@@ -303,7 +308,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_spr(
+            storage_spr(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -311,7 +316,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("spr", "Failed to get SPR"));
+            return Err(StorageError::node_error("spr", "Failed to get SPR"));
         }
 
         let spr = future.wait()?;
@@ -325,7 +330,7 @@ impl CodexNode {
         let future = CallbackFuture::new();
 
         let result = unsafe {
-            codex_peer_id(
+            storage_peer_id(
                 inner.ctx as *mut _,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
@@ -333,7 +338,7 @@ impl CodexNode {
         };
 
         if result != 0 {
-            return Err(CodexError::node_error("peer_id", "Failed to get peer ID"));
+            return Err(StorageError::node_error("peer_id", "Failed to get peer ID"));
         }
 
         let peer_id = future.wait()?;
@@ -364,28 +369,28 @@ impl CodexNode {
     where
         F: FnOnce(*mut c_void) -> R,
     {
-        with_libcodex_lock(|| {
+        with_libstorage_lock(|| {
             let inner = self.inner.lock().unwrap();
             f(inner.ctx)
         })
     }
 }
 
-impl Drop for CodexNode {
+impl Drop for StorageNode {
     fn drop(&mut self) {
         if Arc::strong_count(&self.inner) == 1 {
             let mut inner = self.inner.lock().unwrap();
             if !inner.ctx.is_null() && inner.started {
-                let _ = unsafe {
-                    codex_stop(inner.ctx as *mut _, None, ptr::null_mut());
-                };
+                unsafe {
+                    storage_stop(inner.ctx as *mut _, None, ptr::null_mut());
+                }
                 inner.started = false;
             }
 
             if !inner.ctx.is_null() {
-                let _ = unsafe {
-                    codex_destroy(inner.ctx as *mut _, None, ptr::null_mut());
-                };
+                unsafe {
+                    storage_destroy(inner.ctx as *mut _, None, ptr::null_mut());
+                }
                 inner.ctx = ptr::null_mut();
             }
         }
