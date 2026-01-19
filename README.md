@@ -82,13 +82,7 @@ cargo test
 cargo test --lib
 
 # Run only integration tests
-cargo test --test basic_usage
-cargo test --test chunk_operations
-cargo test --test debug_operations
-cargo test --test p2p_networking
-cargo test --test storage_management
-cargo test --test two_node_network
-cargo test --test thread_safe_tests
+cargo test --test $test_name
 ```
 
 #### Available Integration Tests
