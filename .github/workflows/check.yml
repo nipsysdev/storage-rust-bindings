@@ -24,8 +24,14 @@ jobs:
           - clippy
 
     steps:
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
 
       - name: Run cargo check
         if: matrix.task == 'check'
@@ -45,8 +51,14 @@ jobs:
     timeout-minutes: 30
 
     steps:
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
 
       - name: Run cargo test
         run: cargo test --all-features
@@ -58,8 +70,14 @@ jobs:
     needs: [lint, test]
 
     steps:
-      - name: Setup
-        uses: ./.github/actions/setup
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
 
       - name: Run cargo build
         run: cargo build --all-features --release
