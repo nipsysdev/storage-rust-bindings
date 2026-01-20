@@ -1,0 +1,14 @@
+name: "Setup"
+description: "Checkout code and install mise"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v6
+
+    - name: Install mise
+      uses: jdx/mise-action@v3
+      with:
+        enable: true
+        cache: true
