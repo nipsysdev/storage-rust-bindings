@@ -14,7 +14,7 @@ categories = ["api-bindings", "network-programming"]
 # Format: <branch>-<commit-hash> (e.g., "master-60861d6a")
 # Leave empty or comment out to use the latest release
 [package.metadata.prebuilt]
-libstorage = "master-1acedcf"
+libstorage = "master-52d2748"
 
 [lib]
 name = "storage_bindings"
