@@ -51,12 +51,8 @@ pub fn link_prebuilt_library(lib_dir: &PathBuf) {
     println!("cargo:rustc-link-lib=static=natpmp");
     println!("  [LINKER]   - miniupnpc");
     println!("cargo:rustc-link-lib=static=miniupnpc");
-    println!("  [LINKER]   - circom_compat_ffi");
-    println!("cargo:rustc-link-lib=static=circom_compat_ffi");
     println!("  [LINKER]   - backtrace");
     println!("cargo:rustc-link-lib=static=backtrace");
-    println!("  [LINKER]   - libleopard");
-    println!("cargo:rustc-link-lib=static=libleopard");
     println!("  [LINKER] ✓ Static libraries linked");
 
     // System libraries required by the prebuilt library
