@@ -4,7 +4,6 @@ use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::task::{Context, Poll, Waker};
-use std::thread;
 use std::time::Duration;
 
 /// Type alias for the progress callback function type
@@ -128,31 +127,6 @@ impl CallbackContext {
             }
         }
     }
-
-    /// Wait for the callback to complete (blocking)
-    ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated because it uses a blocking sleep loop.
-    /// Use the async `Future` implementation instead with `.await`.
-    #[deprecated(since = "0.3.0", note = "Use async/await instead")]
-    pub fn wait(&self) -> Result<String> {
-        for _ in 0..600 {
-            {
-                let completed = self.completed.lock().unwrap();
-                if *completed {
-                    break;
-                }
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        if let Some(result) = self.get_result() {
-            result
-        } else {
-            Err(StorageError::timeout("callback operation"))
-        }
-    }
 }
 
 impl Drop for CallbackContext {
@@ -194,17 +168,6 @@ impl CallbackFuture {
         F: Fn(usize, Option<&[u8]>) + Send + 'static,
     {
         self.context.set_progress_callback(callback);
-    }
-
-    /// Wait for the callback to complete (blocking)
-    ///
-    /// # Deprecated
-    ///
-    /// This method is deprecated because it uses a blocking sleep loop.
-    /// Use the async `Future` implementation instead with `.await`.
-    #[deprecated(since = "0.3.0", note = "Use async/await instead")]
-    pub fn wait(&self) -> Result<String> {
-        self.context.wait()
     }
 
     /// Wait for the callback to complete with a timeout (async)
