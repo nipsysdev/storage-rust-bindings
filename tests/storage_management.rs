@@ -12,7 +12,7 @@ use std::io::Write;
 use storage_bindings::{LogLevel, StorageConfig, StorageNode};
 use tempfile::tempdir;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();

@@ -6,82 +6,62 @@ use crate::p2p::types::PeerRecord;
 use libc::c_void;
 
 pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerRecord> {
-    let node = node.clone();
-    let peer_id = peer_id.to_string();
+    if peer_id.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "peer_id",
+            "Peer ID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if peer_id.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "peer_id",
-                "Peer ID cannot be empty",
-            ));
-        }
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let c_peer_id = string_to_c_string(peer_id);
 
-        with_libstorage_lock(|| {
-            let c_peer_id = string_to_c_string(&peer_id);
+    let result = unsafe {
+        node.with_ctx(|ctx| {
+            storage_peer_debug(
+                ctx as *mut _,
+                c_peer_id,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    };
 
-            let result = unsafe {
-                node.with_ctx(|ctx| {
-                    storage_peer_debug(
-                        ctx as *mut _,
-                        c_peer_id,
-                        Some(c_callback),
-                        future.context_ptr() as *mut c_void,
-                    )
-                })
-            };
+    unsafe {
+        free_c_string(c_peer_id);
+    }
 
-            unsafe {
-                free_c_string(c_peer_id);
-            }
+    if result != 0 {
+        return Err(StorageError::p2p_error("Failed to get peer info"));
+    }
 
-            if result != 0 {
-                return Err(StorageError::p2p_error("Failed to get peer info"));
-            }
+    let peer_json = future.await?;
 
-            Ok(())
-        })?;
+    let peer: PeerRecord = serde_json::from_str(&peer_json)
+        .map_err(|e| StorageError::library_error(format!("Failed to parse peer info: {}", e)))?;
 
-        let peer_json = future.wait()?;
-
-        let peer: PeerRecord = serde_json::from_str(&peer_json).map_err(|e| {
-            StorageError::library_error(format!("Failed to parse peer info: {}", e))
-        })?;
-
-        Ok(peer)
-    })
-    .await?
+    Ok(peer)
 }
 
 pub async fn get_peer_id(node: &StorageNode) -> Result<String> {
-    let node = node.clone();
+    let future = CallbackFuture::new();
 
-    tokio::task::spawn_blocking(move || {
-        let future = CallbackFuture::new();
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_peer_id(
+                ctx as *mut _,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
 
-        with_libstorage_lock(|| {
-            let result = unsafe {
-                node.with_ctx(|ctx| {
-                    storage_peer_id(
-                        ctx as *mut _,
-                        Some(c_callback),
-                        future.context_ptr() as *mut c_void,
-                    )
-                })
-            };
+    if result != 0 {
+        return Err(StorageError::p2p_error("Failed to get peer ID"));
+    }
 
-            if result != 0 {
-                return Err(StorageError::p2p_error("Failed to get peer ID"));
-            }
+    let peer_id = future.await?;
 
-            Ok(())
-        })?;
-
-        let peer_id = future.wait()?;
-
-        Ok(peer_id)
-    })
-    .await?
+    Ok(peer_id)
 }

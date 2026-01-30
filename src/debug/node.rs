@@ -118,66 +118,55 @@ impl Default for DebugInfo {
 }
 
 pub async fn debug(node: &StorageNode) -> Result<DebugInfo> {
-    let node = node.clone();
+    let future = CallbackFuture::new();
 
-    tokio::task::spawn_blocking(move || {
-        let future = CallbackFuture::new();
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_debug(
+                ctx as *mut _,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                storage_debug(
-                    ctx as *mut _,
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                )
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::library_error("Failed to get debug info"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::library_error("Failed to get debug info"));
-        }
+    let debug_json = future.await?;
 
-        let debug_json = future.wait()?;
+    let debug_info: DebugInfo = serde_json::from_str(&debug_json)
+        .map_err(|e| StorageError::library_error(format!("Failed to parse debug info: {}", e)))?;
 
-        let debug_info: DebugInfo = serde_json::from_str(&debug_json).map_err(|e| {
-            StorageError::library_error(format!("Failed to parse debug info: {}", e))
-        })?;
-
-        Ok(debug_info)
-    })
-    .await?
+    Ok(debug_info)
 }
 
 pub async fn update_log_level(node: &StorageNode, log_level: LogLevel) -> Result<()> {
-    let node = node.clone();
+    let future = CallbackFuture::new();
 
-    tokio::task::spawn_blocking(move || {
-        let future = CallbackFuture::new();
+    let c_log_level = string_to_c_string(&log_level.to_string());
 
-        let c_log_level = string_to_c_string(&log_level.to_string());
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_log_level(
+                ctx as *mut _,
+                c_log_level,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                storage_log_level(
-                    ctx as *mut _,
-                    c_log_level,
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                )
-            })
-        });
+    unsafe {
+        free_c_string(c_log_level);
+    }
 
-        unsafe {
-            free_c_string(c_log_level);
-        }
+    if result != 0 {
+        return Err(StorageError::library_error("Failed to update log level"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::library_error("Failed to update log level"));
-        }
+    future.await?;
 
-        future.wait()?;
-
-        Ok(())
-    })
-    .await?
+    Ok(())
 }

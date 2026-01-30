@@ -5,63 +5,56 @@ use crate::node::lifecycle::StorageNode;
 use libc::{c_char, c_void};
 
 pub async fn connect(node: &StorageNode, peer_id: &str, peer_addresses: &[String]) -> Result<()> {
-    let node = node.clone();
-    let peer_id = peer_id.to_string();
-    let peer_addresses = peer_addresses.to_vec();
+    if peer_id.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "peer_id",
+            "Peer ID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if peer_id.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "peer_id",
-                "Peer ID cannot be empty",
-            ));
+    if peer_addresses.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "peer_addresses",
+            "At least one peer address must be provided",
+        ));
+    }
+
+    let future = CallbackFuture::new();
+
+    let c_peer_id = string_to_c_string(peer_id);
+
+    let c_addresses: Vec<*mut c_char> = peer_addresses
+        .iter()
+        .map(|addr| string_to_c_string(addr))
+        .collect();
+
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_connect(
+                ctx as *mut _,
+                c_peer_id,
+                c_addresses.as_ptr() as *mut *const c_char,
+                c_addresses.len(),
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
+
+    unsafe {
+        free_c_string(c_peer_id);
+        for addr in c_addresses {
+            free_c_string(addr);
         }
+    }
 
-        if peer_addresses.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "peer_addresses",
-                "At least one peer address must be provided",
-            ));
-        }
+    if result != 0 {
+        return Err(StorageError::p2p_error("Failed to connect to peer"));
+    }
 
-        let future = CallbackFuture::new();
+    future.await?;
 
-        let c_peer_id = string_to_c_string(&peer_id);
-
-        let c_addresses: Vec<*mut c_char> = peer_addresses
-            .iter()
-            .map(|addr| string_to_c_string(addr))
-            .collect();
-
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                storage_connect(
-                    ctx as *mut _,
-                    c_peer_id,
-                    c_addresses.as_ptr() as *mut *const c_char,
-                    c_addresses.len(),
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                )
-            })
-        });
-
-        unsafe {
-            free_c_string(c_peer_id);
-            for addr in c_addresses {
-                free_c_string(addr);
-            }
-        }
-
-        if result != 0 {
-            return Err(StorageError::p2p_error("Failed to connect to peer"));
-        }
-
-        future.wait()?;
-
-        Ok(())
-    })
-    .await?
+    Ok(())
 }
 
 pub async fn connect_to_multiple(

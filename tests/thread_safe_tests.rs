@@ -2,7 +2,7 @@ use std::sync::Arc;
 use storage_bindings::{StorageConfig, StorageNode};
 use tempfile::tempdir;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_thread_safe_node_creation() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -11,7 +11,7 @@ async fn test_thread_safe_node_creation() {
     assert!(!node.is_started());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_thread_safe_node_lifecycle() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -31,7 +31,7 @@ async fn test_thread_safe_node_lifecycle() {
     assert!(!node.is_started());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_node_cloning() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -48,7 +48,7 @@ async fn test_node_cloning() {
     assert!(node2.is_started());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_concurrent_access() {
     use tokio::task::JoinSet;
 
@@ -104,7 +104,7 @@ fn test_clone_trait() {
     assert!(node2.is_started());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_send_between_threads() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -119,7 +119,7 @@ async fn test_send_between_threads() {
     assert_eq!(result.unwrap(), "success");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_async_file_upload() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -139,7 +139,7 @@ async fn test_async_file_upload() {
     node.stop_async().await.unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_multiple_concurrent_operations() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -174,7 +174,7 @@ async fn test_multiple_concurrent_operations() {
     node.stop_async().await.unwrap();
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_shared_node_across_tasks() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -218,29 +218,33 @@ async fn test_shared_node_across_tasks() {
     }
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_send_future_compatibility() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
     let node = Arc::new(StorageNode::new(config).unwrap());
 
-    let future = async move {
-        node.start_async().await.unwrap();
+    let result = tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            node.start_async().await.unwrap();
 
-        let file_path = temp_dir.path().join("test.txt");
-        std::fs::write(&file_path, b"Hello, Storage!").unwrap();
+            let file_path = temp_dir.path().join("test.txt");
+            std::fs::write(&file_path, b"Hello, Storage!").unwrap();
 
-        let options = storage_bindings::UploadOptions::new().filepath(&file_path);
-        let _result = storage_bindings::upload_file(&node, options).await.unwrap();
+            let options = storage_bindings::UploadOptions::new().filepath(&file_path);
+            let _result = storage_bindings::upload_file(&node, options).await.unwrap();
 
-        "success"
-    };
+            "success"
+        })
+    })
+    .await
+    .unwrap();
 
-    let result = tokio::task::spawn(future).await.unwrap();
     assert_eq!(result, "success");
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_async_upload_download() {
     use storage_bindings::{DownloadStreamOptions, UploadOptions};
 

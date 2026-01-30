@@ -9,7 +9,7 @@ use storage_bindings::debug::LogLevel;
 use storage_bindings::{StorageConfig, StorageNode};
 use tempfile::tempdir;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();

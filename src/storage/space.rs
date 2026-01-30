@@ -42,79 +42,66 @@ pub struct Space {
 }
 
 pub async fn manifests(node: &StorageNode) -> Result<Vec<Manifest>> {
-    let node = node.clone();
+    let future = CallbackFuture::new();
 
-    tokio::task::spawn_blocking(move || {
-        let future = CallbackFuture::new();
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_list(
+                ctx as *mut _,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                storage_list(
-                    ctx as *mut _,
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                )
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::storage_operation_error(
+            "manifests",
+            "Failed to list manifests",
+        ));
+    }
 
-        if result != 0 {
-            return Err(StorageError::storage_operation_error(
-                "manifests",
-                "Failed to list manifests",
-            ));
-        }
+    let manifests_json = future.await?;
 
-        let manifests_json = future.wait()?;
+    let manifests_with_cid: Vec<ManifestWithCid> = serde_json::from_str(&manifests_json)
+        .map_err(|e| StorageError::library_error(format!("Failed to parse manifests: {}", e)))?;
 
-        let manifests_with_cid: Vec<ManifestWithCid> = serde_json::from_str(&manifests_json)
-            .map_err(|e| {
-                StorageError::library_error(format!("Failed to parse manifests: {}", e))
-            })?;
+    let manifests: Vec<Manifest> = manifests_with_cid
+        .into_iter()
+        .map(|item| {
+            let mut manifest = item.manifest;
+            manifest.cid = item.cid;
+            manifest
+        })
+        .collect();
 
-        let manifests: Vec<Manifest> = manifests_with_cid
-            .into_iter()
-            .map(|item| {
-                let mut manifest = item.manifest;
-                manifest.cid = item.cid;
-                manifest
-            })
-            .collect();
-
-        Ok(manifests)
-    })
-    .await?
+    Ok(manifests)
 }
 
 pub async fn space(node: &StorageNode) -> Result<Space> {
-    let node = node.clone();
+    let future = CallbackFuture::new();
 
-    tokio::task::spawn_blocking(move || {
-        let future = CallbackFuture::new();
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            storage_space(
+                ctx as *mut _,
+                Some(c_callback),
+                future.context_ptr() as *mut c_void,
+            )
+        })
+    });
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                storage_space(
-                    ctx as *mut _,
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                )
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::storage_operation_error(
+            "space",
+            "Failed to get storage space",
+        ));
+    }
 
-        if result != 0 {
-            return Err(StorageError::storage_operation_error(
-                "space",
-                "Failed to get storage space",
-            ));
-        }
+    let space_json = future.await?;
 
-        let space_json = future.wait()?;
+    let space: Space = serde_json::from_str(&space_json)
+        .map_err(|e| StorageError::library_error(format!("Failed to parse space info: {}", e)))?;
 
-        let space: Space = serde_json::from_str(&space_json).map_err(|e| {
-            StorageError::library_error(format!("Failed to parse space info: {}", e))
-        })?;
-
-        Ok(space)
-    })
-    .await?
+    Ok(space)
 }

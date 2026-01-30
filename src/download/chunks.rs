@@ -32,53 +32,46 @@ use std::sync::{Arc, Mutex};
 /// - The CID is empty
 /// - The chunk download fails
 pub async fn download_chunk(node: &StorageNode, cid: &str) -> Result<Vec<u8>> {
-    let node = node.clone();
-    let cid = cid.to_string();
+    if cid.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "cid",
+            "CID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if cid.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "cid",
-                "CID cannot be empty",
-            ));
+    let chunk_data = Arc::new(Mutex::new(Vec::<u8>::new()));
+    let chunk_data_clone = chunk_data.clone();
+
+    let future = CallbackFuture::new();
+
+    future.context.set_progress_callback(move |_len, chunk| {
+        if let Some(chunk_bytes) = chunk {
+            let mut data = chunk_data_clone.lock().unwrap();
+            data.clear();
+            data.extend_from_slice(chunk_bytes);
         }
+    });
 
-        let chunk_data = Arc::new(Mutex::new(Vec::<u8>::new()));
-        let chunk_data_clone = chunk_data.clone();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let future = CallbackFuture::new();
+    let result = with_libstorage_lock(|| unsafe {
+        let ctx = node.ctx();
+        let c_cid = string_to_c_string(cid);
+        let result = storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        future.context.set_progress_callback(move |_len, chunk| {
-            if let Some(chunk_bytes) = chunk {
-                let mut data = chunk_data_clone.lock().unwrap();
-                data.clear();
-                data.extend_from_slice(chunk_bytes);
-            }
-        });
+        free_c_string(c_cid);
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+        result
+    });
 
-        let result = with_libstorage_lock(|| unsafe {
-            let ctx = node.ctx();
-            let c_cid = string_to_c_string(&cid);
-            let result =
-                storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+    if result != 0 {
+        return Err(StorageError::download_error("Failed to download chunk"));
+    }
 
-            free_c_string(c_cid);
+    future.await?;
 
-            result
-        });
-
-        if result != 0 {
-            return Err(StorageError::download_error("Failed to download chunk"));
-        }
-
-        future.wait()?;
-
-        let data = chunk_data.lock().unwrap().clone();
-        Ok(data)
-    })
-    .await?
+    let data = chunk_data.lock().unwrap().clone();
+    Ok(data)
 }
 
 /// Download multiple chunks in parallel
@@ -158,46 +151,38 @@ pub async fn download_chunk_with_progress<F>(
 where
     F: Fn(&[u8]) + Send + Sync + 'static,
 {
-    let node = node.clone();
-    let cid = cid.to_string();
-    let progress_callback = Arc::new(progress_callback);
+    if cid.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "cid",
+            "CID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if cid.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "cid",
-                "CID cannot be empty",
-            ));
+    let future = CallbackFuture::new();
+    let progress_callback_clone = Arc::new(progress_callback);
+
+    future.context.set_progress_callback(move |_len, chunk| {
+        if let Some(chunk_bytes) = chunk {
+            progress_callback_clone(chunk_bytes);
         }
+    });
 
-        let future = CallbackFuture::new();
-        let progress_callback_clone = progress_callback.clone();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        future.context.set_progress_callback(move |_len, chunk| {
-            if let Some(chunk_bytes) = chunk {
-                progress_callback_clone(chunk_bytes);
-            }
-        });
+    let result = with_libstorage_lock(|| unsafe {
+        let ctx = node.ctx();
+        let c_cid = string_to_c_string(cid);
+        let result = storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+        free_c_string(c_cid);
 
-        let result = with_libstorage_lock(|| unsafe {
-            let ctx = node.ctx();
-            let c_cid = string_to_c_string(&cid);
-            let result =
-                storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+        result
+    });
 
-            free_c_string(c_cid);
+    if result != 0 {
+        return Err(StorageError::download_error("Failed to download chunk"));
+    }
 
-            result
-        });
-
-        if result != 0 {
-            return Err(StorageError::download_error("Failed to download chunk"));
-        }
-
-        future.wait()?;
-        Ok(())
-    })
-    .await?
+    future.await?;
+    Ok(())
 }

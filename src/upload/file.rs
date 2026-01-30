@@ -35,62 +35,56 @@ use std::path::Path;
 /// - The file doesn't exist
 /// - The upload fails for any reason
 pub async fn upload_file(node: &StorageNode, options: UploadOptions) -> Result<UploadResult> {
-    let node = node.clone();
-    let options = options.clone();
+    if options.filepath.is_none() {
+        return Err(StorageError::invalid_parameter(
+            "filepath",
+            "File path must be specified for file upload",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if options.filepath.is_none() {
-            return Err(StorageError::invalid_parameter(
-                "filepath",
-                "File path must be specified for file upload",
-            ));
-        }
+    let filepath = options.filepath.as_ref().unwrap();
 
-        let filepath = options.filepath.as_ref().unwrap();
+    if !Path::new(filepath).exists() {
+        return Err(StorageError::invalid_parameter(
+            "filepath",
+            format!("File does not exist: {}", filepath.display()),
+        ));
+    }
 
-        if !Path::new(filepath).exists() {
-            return Err(StorageError::invalid_parameter(
-                "filepath",
-                format!("File does not exist: {}", filepath.display()),
-            ));
-        }
+    let start_time = std::time::Instant::now();
 
-        let start_time = std::time::Instant::now();
+    let file_size = std::fs::metadata(filepath)?.len() as usize;
 
-        let file_size = std::fs::metadata(filepath)?.len() as usize;
+    let session_id = upload_init_sync(node, &options)?;
 
-        let session_id = upload_init_sync(&node, &options)?;
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = unsafe {
+        node.with_ctx_locked(|ctx| {
+            let c_session_id = string_to_c_string(&session_id);
+            let result =
+                storage_upload_file(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
-        let result = unsafe {
-            node.with_ctx_locked(|ctx| {
-                let c_session_id = string_to_c_string(&session_id);
-                let result =
-                    storage_upload_file(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
+            free_c_string(c_session_id);
 
-                free_c_string(c_session_id);
+            result
+        })
+    };
 
-                result
-            })
-        };
+    if result != 0 {
+        let _ = upload_cancel_sync(node, &session_id);
+        return Err(StorageError::library_error("Failed to upload file"));
+    }
 
-        if result != 0 {
-            let _ = upload_cancel_sync(&node, &session_id);
-            return Err(StorageError::library_error("Failed to upload file"));
-        }
+    let cid = future.await?;
 
-        let cid = future.wait()?;
+    let duration = start_time.elapsed();
 
-        let duration = start_time.elapsed();
-
-        Ok(UploadResult::new(cid, file_size)
-            .duration_ms(duration.as_millis() as u64)
-            .verified(options.verify))
-    })
-    .await?
+    Ok(UploadResult::new(cid, file_size)
+        .duration_ms(duration.as_millis() as u64)
+        .verified(options.verify))
 }
 
 /// Upload data from any Read implementation
@@ -213,7 +207,8 @@ fn upload_init_sync(node: &StorageNode, options: &UploadOptions) -> Result<Strin
         return Err(StorageError::upload_error("Failed to initialize upload"));
     }
 
-    let session_id = future.wait()?;
+    let session_id =
+        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
     Ok(session_id)
 }
 
@@ -261,7 +256,7 @@ fn upload_chunk_sync(node: &StorageNode, session_id: &str, chunk: &[u8]) -> Resu
         return Err(StorageError::upload_error("Failed to upload chunk"));
     }
 
-    future.wait()?;
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
     Ok(())
 }
 
@@ -298,7 +293,7 @@ fn upload_finalize_sync(node: &StorageNode, session_id: &str) -> Result<String> 
         return Err(StorageError::upload_error("Failed to finalize upload"));
     }
 
-    let cid = future.wait()?;
+    let cid = tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
     Ok(cid)
 }
 
@@ -335,6 +330,6 @@ fn upload_cancel_sync(node: &StorageNode, session_id: &str) -> Result<()> {
         return Err(StorageError::upload_error("Failed to cancel upload"));
     }
 
-    future.wait()?;
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
     Ok(())
 }

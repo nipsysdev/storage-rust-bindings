@@ -2,7 +2,9 @@
 
 use crate::error::{Result, StorageError};
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::env;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// Log level for the Storage node
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -419,6 +421,291 @@ impl StorageConfig {
     /// Create a configuration from a JSON string
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json).map_err(StorageError::from)
+    }
+
+    /// Create a configuration from environment variables
+    ///
+    /// Environment variables with the `STORAGE_` prefix are supported:
+    ///
+    /// - `STORAGE_DATA_DIR` - Data directory path
+    /// - `STORAGE_LOG_LEVEL` - Log level (trace, debug, info, notice, warn, error, fatal)
+    /// - `STORAGE_LOG_FORMAT` - Log format (auto, colors, nocolors, json)
+    /// - `STORAGE_STORAGE_QUOTA` - Storage quota in bytes (supports suffixes: K, M, G, T)
+    /// - `STORAGE_MAX_PEERS` - Maximum number of peers
+    /// - `STORAGE_DISCOVERY_PORT` - Discovery port
+    /// - `STORAGE_NUM_THREADS` - Number of worker threads
+    /// - `STORAGE_REPO_KIND` - Repository kind (fs, sqlite, leveldb)
+    /// - `STORAGE_NAT` - NAT configuration
+    /// - `STORAGE_AGENT_STRING` - Agent string
+    ///
+    /// # Example
+    ///
+    /// ```bash
+    /// export STORAGE_LOG_LEVEL=debug
+    /// export STORAGE_DATA_DIR=/tmp/storage
+    /// export STORAGE_STORAGE_QUOTA=1G
+    /// ```
+    pub fn from_env() -> Result<Self> {
+        let mut config = Self::default();
+
+        // Read environment variables
+        if let Ok(data_dir) = env::var("STORAGE_DATA_DIR") {
+            config.data_dir = Some(PathBuf::from(data_dir));
+        }
+
+        if let Ok(log_level) = env::var("STORAGE_LOG_LEVEL") {
+            config.log_level = Some(LogLevel::from_str(&log_level).map_err(|_| {
+                StorageError::config_error(format!("Invalid log level: {}", log_level))
+            })?);
+        }
+
+        if let Ok(log_format) = env::var("STORAGE_LOG_FORMAT") {
+            config.log_format = Some(LogFormat::from_str(&log_format).map_err(|_| {
+                StorageError::config_error(format!("Invalid log format: {}", log_format))
+            })?);
+        }
+
+        if let Ok(storage_quota) = env::var("STORAGE_STORAGE_QUOTA") {
+            config.storage_quota = Some(parse_bytes(&storage_quota).map_err(|e| {
+                StorageError::config_error(format!("Invalid storage quota: {}", e))
+            })?);
+        }
+
+        if let Ok(max_peers) = env::var("STORAGE_MAX_PEERS") {
+            config.max_peers =
+                Some(max_peers.parse().map_err(|e| {
+                    StorageError::config_error(format!("Invalid max peers: {}", e))
+                })?);
+        }
+
+        if let Ok(discovery_port) = env::var("STORAGE_DISCOVERY_PORT") {
+            config.discovery_port = Some(discovery_port.parse().map_err(|e| {
+                StorageError::config_error(format!("Invalid discovery port: {}", e))
+            })?);
+        }
+
+        if let Ok(num_threads) = env::var("STORAGE_NUM_THREADS") {
+            config.num_threads =
+                Some(num_threads.parse().map_err(|e| {
+                    StorageError::config_error(format!("Invalid num threads: {}", e))
+                })?);
+        }
+
+        if let Ok(repo_kind) = env::var("STORAGE_REPO_KIND") {
+            config.repo_kind = Some(RepoKind::from_str(&repo_kind).map_err(|_| {
+                StorageError::config_error(format!("Invalid repo kind: {}", repo_kind))
+            })?);
+        }
+
+        if let Ok(nat) = env::var("STORAGE_NAT") {
+            config.nat = Some(nat);
+        }
+
+        if let Ok(agent_string) = env::var("STORAGE_AGENT_STRING") {
+            config.agent_string = Some(agent_string);
+        }
+
+        Ok(config)
+    }
+
+    /// Merge configuration from environment variables
+    ///
+    /// Environment variables override the current configuration values.
+    pub fn merge_with_env(mut self) -> Result<Self> {
+        let env_config = Self::from_env()?;
+
+        // Override with environment values (only if set)
+        if env_config.data_dir.is_some() {
+            self.data_dir = env_config.data_dir;
+        }
+        if env_config.log_level.is_some() {
+            self.log_level = env_config.log_level;
+        }
+        if env_config.log_format.is_some() {
+            self.log_format = env_config.log_format;
+        }
+        if env_config.storage_quota.is_some() {
+            self.storage_quota = env_config.storage_quota;
+        }
+        if env_config.max_peers.is_some() {
+            self.max_peers = env_config.max_peers;
+        }
+        if env_config.discovery_port.is_some() {
+            self.discovery_port = env_config.discovery_port;
+        }
+        if env_config.num_threads.is_some() {
+            self.num_threads = env_config.num_threads;
+        }
+        if env_config.repo_kind.is_some() {
+            self.repo_kind = env_config.repo_kind;
+        }
+        if env_config.nat.is_some() {
+            self.nat = env_config.nat;
+        }
+        if env_config.agent_string.is_some() {
+            self.agent_string = env_config.agent_string;
+        }
+
+        Ok(self)
+    }
+
+    /// Merge configuration from a JSON file
+    ///
+    /// File values override the current configuration values.
+    pub fn merge_with_file(mut self, path: &Path) -> Result<Self> {
+        let file_content = std::fs::read_to_string(path).map_err(|e| {
+            StorageError::config_error(format!("Failed to read config file: {}", e))
+        })?;
+
+        let file_config: StorageConfig = serde_json::from_str(&file_content).map_err(|e| {
+            StorageError::config_error(format!("Failed to parse config file: {}", e))
+        })?;
+
+        // Override with file values (only if set)
+        if file_config.data_dir.is_some() {
+            self.data_dir = file_config.data_dir;
+        }
+        if file_config.log_level.is_some() {
+            self.log_level = file_config.log_level;
+        }
+        if file_config.log_format.is_some() {
+            self.log_format = file_config.log_format;
+        }
+        if file_config.storage_quota.is_some() {
+            self.storage_quota = file_config.storage_quota;
+        }
+        if file_config.max_peers.is_some() {
+            self.max_peers = file_config.max_peers;
+        }
+        if file_config.discovery_port.is_some() {
+            self.discovery_port = file_config.discovery_port;
+        }
+        if file_config.num_threads.is_some() {
+            self.num_threads = file_config.num_threads;
+        }
+        if file_config.repo_kind.is_some() {
+            self.repo_kind = file_config.repo_kind;
+        }
+        if file_config.nat.is_some() {
+            self.nat = file_config.nat;
+        }
+        if file_config.agent_string.is_some() {
+            self.agent_string = file_config.agent_string;
+        }
+
+        Ok(self)
+    }
+
+    /// Merge configuration from CLI arguments
+    ///
+    /// CLI arguments override the current configuration values.
+    pub fn merge_with_cli(mut self, args: &CliArgs) -> Result<Self> {
+        if let Some(log_level) = &args.log_level {
+            self.log_level = Some(LogLevel::from_str(log_level).map_err(|_| {
+                StorageError::config_error(format!("Invalid log level: {}", log_level))
+            })?);
+        }
+        if let Some(data_dir) = &args.data_dir {
+            self.data_dir = Some(PathBuf::from(data_dir));
+        }
+        if let Some(storage_quota) = &args.storage_quota {
+            self.storage_quota = Some(parse_bytes(storage_quota).map_err(|e| {
+                StorageError::config_error(format!("Invalid storage quota: {}", e))
+            })?);
+        }
+        if let Some(max_peers) = args.max_peers {
+            self.max_peers = Some(max_peers);
+        }
+        if let Some(discovery_port) = args.discovery_port {
+            self.discovery_port = Some(discovery_port);
+        }
+
+        Ok(self)
+    }
+}
+
+/// CLI arguments for configuration
+#[derive(Debug, Clone, Default)]
+pub struct CliArgs {
+    pub log_level: Option<String>,
+    pub data_dir: Option<String>,
+    pub storage_quota: Option<String>,
+    pub max_peers: Option<u32>,
+    pub discovery_port: Option<u16>,
+}
+
+/// Parse a byte string with optional suffix (K, M, G, T)
+fn parse_bytes(s: &str) -> Result<u64> {
+    let s = s.trim();
+    let (num, suffix) = if let Some(pos) = s.find(|c: char| !c.is_ascii_digit()) {
+        (&s[..pos], &s[pos..])
+    } else {
+        (s, "")
+    };
+
+    let base: u64 = num
+        .parse()
+        .map_err(|e| StorageError::config_error(format!("Invalid number: {}", e)))?;
+
+    let multiplier = match suffix.to_uppercase().as_str() {
+        "" | "B" => 1,
+        "K" | "KB" => 1024,
+        "M" | "MB" => 1024 * 1024,
+        "G" | "GB" => 1024 * 1024 * 1024,
+        "T" | "TB" => 1024 * 1024 * 1024 * 1024,
+        _ => {
+            return Err(StorageError::config_error(format!(
+                "Invalid suffix: {}",
+                suffix
+            )))
+        }
+    };
+
+    Ok(base * multiplier)
+}
+
+// Add FromStr implementations for enums
+impl FromStr for LogLevel {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "trace" => Ok(LogLevel::Trace),
+            "debug" => Ok(LogLevel::Debug),
+            "info" => Ok(LogLevel::Info),
+            "notice" => Ok(LogLevel::Notice),
+            "warn" => Ok(LogLevel::Warn),
+            "error" => Ok(LogLevel::Error),
+            "fatal" => Ok(LogLevel::Fatal),
+            _ => Err(format!("Invalid log level: {}", s)),
+        }
+    }
+}
+
+impl FromStr for LogFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "auto" => Ok(LogFormat::Auto),
+            "colors" => Ok(LogFormat::Colors),
+            "nocolors" => Ok(LogFormat::NoColors),
+            "json" => Ok(LogFormat::Json),
+            _ => Err(format!("Invalid log format: {}", s)),
+        }
+    }
+}
+
+impl FromStr for RepoKind {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "fs" => Ok(RepoKind::Fs),
+            "sqlite" => Ok(RepoKind::Sqlite),
+            "leveldb" => Ok(RepoKind::LevelDb),
+            _ => Err(format!("Invalid repo kind: {}", s)),
+        }
     }
 }
 

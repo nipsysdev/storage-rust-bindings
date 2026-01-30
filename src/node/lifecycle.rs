@@ -50,7 +50,8 @@ impl StorageNode {
                 node_ctx
             };
 
-            let _result = future.wait()?;
+            let _result =
+                tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
             Ok(StorageNode {
                 inner: Arc::new(Mutex::new(StorageNodeInner {
@@ -81,7 +82,8 @@ impl StorageNode {
             return Err(StorageError::node_error("start", "Failed to start node"));
         }
 
-        let _result = future.wait()?;
+        let _result =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         inner.started = true;
         Ok(())
@@ -90,45 +92,41 @@ impl StorageNode {
     pub async fn start_async(&self) -> Result<()> {
         let node = self.clone();
 
-        tokio::task::spawn_blocking(move || {
-            {
-                let inner = node.inner.lock().unwrap();
-                if inner.started {
-                    return Err(StorageError::node_error(
-                        "start_async_send",
-                        "Node is already started",
-                    ));
-                }
-            }
-
-            let future = CallbackFuture::new();
-
-            let ctx = {
-                let inner = node.inner.lock().unwrap();
-                inner.ctx as *mut _
-            };
-
-            let result = unsafe {
-                storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void)
-            };
-
-            if result != 0 {
+        {
+            let inner = node.inner.lock().unwrap();
+            if inner.started {
                 return Err(StorageError::node_error(
                     "start_async_send",
-                    "Failed to start node",
+                    "Node is already started",
                 ));
             }
+        }
 
-            let _result = future.wait()?;
+        let future = CallbackFuture::new();
 
-            {
-                let mut inner = node.inner.lock().unwrap();
-                inner.started = true;
-            }
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
+        };
 
-            Ok(())
-        })
-        .await?
+        let result =
+            unsafe { storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+
+        if result != 0 {
+            return Err(StorageError::node_error(
+                "start_async_send",
+                "Failed to start node",
+            ));
+        }
+
+        let _result = future.await?;
+
+        {
+            let mut inner = node.inner.lock().unwrap();
+            inner.started = true;
+        }
+
+        Ok(())
     }
 
     pub fn stop(&mut self) -> Result<()> {
@@ -158,57 +156,58 @@ impl StorageNode {
     pub async fn stop_async(&self) -> Result<()> {
         let node = self.clone();
 
-        tokio::task::spawn_blocking(move || {
-            {
-                let inner = node.inner.lock().unwrap();
-                if !inner.started {
-                    return Err(StorageError::node_error(
-                        "stop_async_send",
-                        "Node is not started",
-                    ));
-                }
-            }
-
-            let future = CallbackFuture::new();
-
-            let ctx = {
-                let inner = node.inner.lock().unwrap();
-                inner.ctx as *mut _
-            };
-
-            let result =
-                unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
-
-            if result != 0 {
+        {
+            let inner = node.inner.lock().unwrap();
+            if !inner.started {
                 return Err(StorageError::node_error(
                     "stop_async_send",
-                    "Failed to stop node",
+                    "Node is not started",
                 ));
             }
+        }
 
-            let _result = future.wait()?;
+        let future = CallbackFuture::new();
 
-            {
-                let mut inner = node.inner.lock().unwrap();
-                inner.started = false;
-            }
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
+        };
 
-            Ok(())
-        })
-        .await?
-    }
+        let result =
+            unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
-    pub fn destroy(self) -> Result<()> {
-        if Arc::strong_count(&self.inner) != 1 {
+        if result != 0 {
             return Err(StorageError::node_error(
-                "destroy",
-                "Cannot destroy: multiple references exist",
+                "stop_async_send",
+                "Failed to stop node",
             ));
         }
 
-        let mut inner = self.inner.lock().unwrap();
+        let _result = future.await?;
+
+        {
+            let mut inner = node.inner.lock().unwrap();
+            inner.started = false;
+        }
+
+        Ok(())
+    }
+
+    /// Close the Storage node
+    ///
+    /// This method closes the node and releases resources. The node must be
+    /// stopped before it can be closed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the node is still started.
+    pub fn close(&mut self) -> Result<()> {
+        let inner = self.inner.lock().unwrap();
         if inner.started {
-            return Err(StorageError::node_error("destroy", "Node is still started"));
+            return Err(StorageError::node_error(
+                "close",
+                "Node must be stopped before closing",
+            ));
         }
 
         let future = CallbackFuture::new();
@@ -222,14 +221,143 @@ impl StorageNode {
         };
 
         if result != 0 {
+            return Err(StorageError::node_error("close", "Failed to close node"));
+        }
+
+        let _result =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
+        Ok(())
+    }
+
+    /// Close the Storage node (async version)
+    ///
+    /// This method closes the node and releases resources. The node must be
+    /// stopped before it can be closed.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the node is still started.
+    pub async fn close_async(&self) -> Result<()> {
+        let node = self.clone();
+
+        {
+            let inner = node.inner.lock().unwrap();
+            if inner.started {
+                return Err(StorageError::node_error(
+                    "close_async",
+                    "Node must be stopped before closing",
+                ));
+            }
+        }
+
+        let future = CallbackFuture::new();
+
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
+        };
+
+        let result =
+            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+
+        if result != 0 {
+            return Err(StorageError::node_error(
+                "close_async",
+                "Failed to close node",
+            ));
+        }
+
+        future.await?;
+        Ok(())
+    }
+
+    pub fn destroy(self) -> Result<()> {
+        if Arc::strong_count(&self.inner) != 1 {
+            return Err(StorageError::node_error(
+                "destroy",
+                "Cannot destroy: multiple references exist",
+            ));
+        }
+
+        let ctx = {
+            let inner = self.inner.lock().unwrap();
+            if inner.started {
+                return Err(StorageError::node_error("destroy", "Node is still started"));
+            }
+            inner.ctx as *mut _
+        };
+
+        let future = CallbackFuture::new();
+
+        let result =
+            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+
+        if result != 0 {
             return Err(StorageError::node_error("destroy", "Failed to close node"));
         }
 
-        future.wait()?;
+        let _result =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
-        unsafe { storage_destroy(inner.ctx as *mut _, None, ptr::null_mut()) };
+        unsafe { storage_destroy(ctx, None, ptr::null_mut()) };
 
-        inner.ctx = ptr::null_mut();
+        Ok(())
+    }
+
+    /// Destroy the Storage node (async version)
+    ///
+    /// This method destroys the node and releases all resources. The node must be
+    /// stopped before it can be destroyed. This method will automatically call
+    /// close() before destroying the node.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the node is still started or if there are multiple
+    /// references to the node.
+    pub async fn destroy_async(self) -> Result<()> {
+        if Arc::strong_count(&self.inner) != 1 {
+            return Err(StorageError::node_error(
+                "destroy_async",
+                "Cannot destroy: multiple references exist",
+            ));
+        }
+
+        {
+            let inner = self.inner.lock().unwrap();
+            if inner.started {
+                return Err(StorageError::node_error(
+                    "destroy_async",
+                    "Node is still started",
+                ));
+            }
+        }
+
+        let future = CallbackFuture::new();
+
+        let ctx = {
+            let inner = self.inner.lock().unwrap();
+            inner.ctx as *mut _
+        };
+
+        let result =
+            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+
+        if result != 0 {
+            return Err(StorageError::node_error(
+                "destroy_async",
+                "Failed to close node",
+            ));
+        }
+
+        future.await?;
+
+        unsafe { storage_destroy(ctx, None, ptr::null_mut()) };
+
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.ctx = ptr::null_mut();
+        }
+
         Ok(())
     }
 
@@ -250,7 +378,8 @@ impl StorageNode {
             return Err(StorageError::node_error("version", "Failed to get version"));
         }
 
-        let version = future.wait()?;
+        let version =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         Ok(version)
     }
@@ -275,7 +404,8 @@ impl StorageNode {
             ));
         }
 
-        let revision = future.wait()?;
+        let revision =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         Ok(revision)
     }
@@ -297,7 +427,8 @@ impl StorageNode {
             return Err(StorageError::node_error("repo", "Failed to get repo path"));
         }
 
-        let repo = future.wait()?;
+        let repo =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         Ok(repo)
     }
@@ -319,7 +450,8 @@ impl StorageNode {
             return Err(StorageError::node_error("spr", "Failed to get SPR"));
         }
 
-        let spr = future.wait()?;
+        let spr =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         Ok(spr)
     }
@@ -341,7 +473,8 @@ impl StorageNode {
             return Err(StorageError::node_error("peer_id", "Failed to get peer ID"));
         }
 
-        let peer_id = future.wait()?;
+        let peer_id =
+            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
         Ok(peer_id)
     }
@@ -380,6 +513,8 @@ impl Drop for StorageNode {
     fn drop(&mut self) {
         if Arc::strong_count(&self.inner) == 1 {
             let mut inner = self.inner.lock().unwrap();
+
+            // Stop the node if it's started
             if !inner.ctx.is_null() && inner.started {
                 unsafe {
                     storage_stop(inner.ctx as *mut _, None, ptr::null_mut());
@@ -387,6 +522,14 @@ impl Drop for StorageNode {
                 inner.started = false;
             }
 
+            // Close the node
+            if !inner.ctx.is_null() {
+                unsafe {
+                    storage_close(inner.ctx as *mut _, None, ptr::null_mut());
+                }
+            }
+
+            // Destroy the node
             if !inner.ctx.is_null() {
                 unsafe {
                     storage_destroy(inner.ctx as *mut _, None, ptr::null_mut());

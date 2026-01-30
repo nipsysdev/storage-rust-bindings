@@ -129,6 +129,13 @@ impl CallbackContext {
         }
     }
 
+    /// Wait for the callback to complete (blocking)
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated because it uses a blocking sleep loop.
+    /// Use the async `Future` implementation instead with `.await`.
+    #[deprecated(since = "0.3.0", note = "Use async/await instead")]
     pub fn wait(&self) -> Result<String> {
         for _ in 0..600 {
             {
@@ -189,8 +196,43 @@ impl CallbackFuture {
         self.context.set_progress_callback(callback);
     }
 
+    /// Wait for the callback to complete (blocking)
+    ///
+    /// # Deprecated
+    ///
+    /// This method is deprecated because it uses a blocking sleep loop.
+    /// Use the async `Future` implementation instead with `.await`.
+    #[deprecated(since = "0.3.0", note = "Use async/await instead")]
     pub fn wait(&self) -> Result<String> {
         self.context.wait()
+    }
+
+    /// Wait for the callback to complete with a timeout (async)
+    ///
+    /// This method provides a timeout wrapper around the Future implementation.
+    /// If the callback does not complete within the specified duration, a timeout error is returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - The maximum time to wait for the callback to complete
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::callback::CallbackFuture;
+    /// use std::time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let future = CallbackFuture::new();
+    ///     let result = future.wait_with_timeout(Duration::from_secs(30)).await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn wait_with_timeout(self, duration: Duration) -> Result<String> {
+        tokio::time::timeout(duration, self)
+            .await
+            .map_err(|_| StorageError::timeout("callback operation"))?
     }
 }
 
@@ -372,13 +414,13 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_callback_wait_success() {
-        let context = CallbackContext::new();
+    #[tokio::test]
+    async fn test_callback_wait_success() {
+        let future = CallbackFuture::new();
         unsafe {
-            context.handle_callback(0, std::ptr::null_mut(), 0);
+            future.context.handle_callback(0, std::ptr::null_mut(), 0);
         }
-        let result = context.wait();
+        let result = future.await;
         assert!(result.is_ok());
     }
 

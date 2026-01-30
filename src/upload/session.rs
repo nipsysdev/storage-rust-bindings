@@ -28,50 +28,44 @@ use libc::c_void;
 ///
 /// A session ID string that identifies this upload session
 pub async fn upload_init(node: &StorageNode, options: &UploadOptions) -> Result<String> {
-    let node = node.clone();
-    let options = options.clone();
+    options.validate()?;
 
-    tokio::task::spawn_blocking(move || {
-        options.validate()?;
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let filepath_str = options
+        .filepath
+        .as_ref()
+        .and_then(|p| p.to_str())
+        .unwrap_or("");
 
-        let filepath_str = options
-            .filepath
-            .as_ref()
-            .and_then(|p| p.to_str())
-            .unwrap_or("");
+    let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_filepath = string_to_c_string(filepath_str);
+            let result = storage_upload_init(
+                ctx as *mut _,
+                c_filepath,
+                chunk_size,
+                Some(c_callback),
+                context_ptr,
+            );
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_filepath = string_to_c_string(filepath_str);
-                let result = storage_upload_init(
-                    ctx as *mut _,
-                    c_filepath,
-                    chunk_size,
-                    Some(c_callback),
-                    context_ptr,
-                );
+            if !c_filepath.is_null() {
+                free_c_string(c_filepath);
+            }
 
-                if !c_filepath.is_null() {
-                    free_c_string(c_filepath);
-                }
+            result
+        })
+    });
 
-                result
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::upload_error("Failed to initialize upload"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::upload_error("Failed to initialize upload"));
-        }
-
-        let session_id = future.wait()?;
-        Ok(session_id)
-    })
-    .await?
+    let session_id = future.await?;
+    Ok(session_id)
 }
 
 /// Finalize an upload session
@@ -88,45 +82,35 @@ pub async fn upload_init(node: &StorageNode, options: &UploadOptions) -> Result<
 ///
 /// The CID of the uploaded content
 pub async fn upload_finalize(node: &StorageNode, session_id: &str) -> Result<String> {
-    let node = node.clone();
-    let session_id = session_id.to_string();
+    if session_id.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "session_id",
+            "Session ID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if session_id.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "session_id",
-                "Session ID cannot be empty",
-            ));
-        }
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_session_id = string_to_c_string(session_id);
+            let result =
+                storage_upload_finalize(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_session_id = string_to_c_string(&session_id);
-                let result = storage_upload_finalize(
-                    ctx as *mut _,
-                    c_session_id,
-                    Some(c_callback),
-                    context_ptr,
-                );
+            free_c_string(c_session_id);
 
-                free_c_string(c_session_id);
+            result
+        })
+    });
 
-                result
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::upload_error("Failed to finalize upload"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::upload_error("Failed to finalize upload"));
-        }
-
-        let cid = future.wait()?;
-        Ok(cid)
-    })
-    .await?
+    let cid = future.await?;
+    Ok(cid)
 }
 
 /// Cancel an upload session
@@ -139,43 +123,33 @@ pub async fn upload_finalize(node: &StorageNode, session_id: &str) -> Result<Str
 /// * `node` - The Storage node used for the upload
 /// * `session_id` - The session ID returned by `upload_init`
 pub async fn upload_cancel(node: &StorageNode, session_id: &str) -> Result<()> {
-    let node = node.clone();
-    let session_id = session_id.to_string();
+    if session_id.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "session_id",
+            "Session ID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if session_id.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "session_id",
-                "Session ID cannot be empty",
-            ));
-        }
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_session_id = string_to_c_string(session_id);
+            let result =
+                storage_upload_cancel(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_session_id = string_to_c_string(&session_id);
-                let result = storage_upload_cancel(
-                    ctx as *mut _,
-                    c_session_id,
-                    Some(c_callback),
-                    context_ptr,
-                );
+            free_c_string(c_session_id);
 
-                free_c_string(c_session_id);
+            result
+        })
+    });
 
-                result
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::upload_error("Failed to cancel upload"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::upload_error("Failed to cancel upload"));
-        }
-
-        future.wait()?;
-        Ok(())
-    })
-    .await?
+    future.await?;
+    Ok(())
 }
