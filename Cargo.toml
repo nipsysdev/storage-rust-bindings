@@ -11,10 +11,13 @@ categories = ["api-bindings", "network-programming"]
 
 # Prebuilt binary version pinning
 # Set this to a specific version from https://github.com/nipsysdev/logos-storage-nim-bin/releases
-# Format: <branch>-<commit-hash> (e.g., "master-60861d6a")
-# Leave empty or comment out to use the latest release
+#
+# Version formats:
+# - Stable: "v0.3.0"
+# - Nightly: "master-60861d6a"
+# - Latest: Leave empty or remove to use latest stable release
 [package.metadata.prebuilt]
-libstorage = "master-52d2748"
+libstorage = "v0.3.0"
 
 [lib]
 name = "storage_bindings"

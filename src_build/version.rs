@@ -7,7 +7,7 @@ pub const STORAGE_VERSION_VAR: &str = "LOGOS_STORAGE_VERSION";
 /// Gets the release version to use, with priority:
 /// 1. Environment variable
 /// 2. Cargo.toml metadata
-/// 3. "latest" (default)
+/// 3. "latest" (default - fetches latest stable release via GitHub API)
 pub fn get_release_version() -> Result<String, Box<dyn std::error::Error>> {
     println!("  [VERSION] Starting get_release_version");
 

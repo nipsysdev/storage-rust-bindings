@@ -17,7 +17,7 @@ To learn how to use those bindings, take a look at the [example project](https:/
 
 Building will automatically:
 
-1. Fetch the latest prebuilt libstorage binary for your platform from GitHub
+1. Fetch the pinned static binary release of libstorage for your platform from the [logos-storage-nim-bin](https://github.com/nipsysdev/logos-storage-nim-bin/releases) repository releases
 2. Generate Rust bindings and compile the crate
 
 **Note**: The first build will download the prebuilt binary (~50MB). Subsequent builds will use the cached version.
@@ -38,13 +38,16 @@ The cache is organized by version and platform:
 
 ```
 ~/.cache/storage-bindings/
-├── master-1acedcf/
+├── v0.3.0/              # Stable release
 │   ├── linux-amd64/
 │   │   ├── libstorage.a
 │   │   ├── libstorage.h
 │   │   └── SHA256SUMS.txt
 │   └── darwin-arm64/
 │       └── ...
+├── master-60861d6a/     # Nightly release
+│   ├── linux-amd64/
+│   └── darwin-arm64/
 └── master-2b3d4e5/
     └── ...
 ```
@@ -78,8 +81,12 @@ STORAGE_BINDINGS_CLEAN_CACHE=1 cargo build
 
 - Linux x86_64 (x86_64-unknown-linux-gnu)
 - Linux ARM64 (aarch64-unknown-linux-gnu)
+- macOS Apple Silicon (aarch64-apple-darwin)
+- macOS Intel (x86_64-apple-darwin)
 
 ### Libstorage Version Pinning
+
+This crate is pinned to a stable release by default. You can override the version if needed. [See available versions here](https://github.com/nipsysdev/logos-storage-nim-bin/releases).
 
 **Option 1: Cargo.toml metadata**
 
@@ -87,17 +94,31 @@ Add to your `Cargo.toml`:
 
 ```toml
 [package.metadata.prebuilt]
-libstorage = "master-60861d6a"
+libstorage = "v0.3.0"
 ```
 
 **Option 2: Environment variable (for local overrides)**
 
 ```bash
-export LOGOS_STORAGE_VERSION=master-60861d6a
+export LOGOS_STORAGE_VERSION=v0.3.0
 cargo build
 ```
 
-Available versions can be found at: https://github.com/nipsysdev/logos-storage-nim-bin/releases
+#### Using Latest Stable Release
+
+To use the latest stable release:
+
+```toml
+[package.metadata.prebuilt]
+# Leave empty or remove the section to use latest
+```
+
+Or via environment variable:
+
+```bash
+export LOGOS_STORAGE_VERSION=latest
+cargo build
+```
 
 ### Building from source
 
@@ -112,7 +133,7 @@ cargo build
 To use locally built libraries instead of downloading from GitHub, set the `STORAGE_BINDINGS_LOCAL_LIBS` environment variable to the path of the dist folder:
 
 ```bash
-export STORAGE_BINDINGS_LOCAL_LIBS=/path/to/logos-storage-nim-bin/dist/master-50bd1839-linux-amd64
+export STORAGE_BINDINGS_LOCAL_LIBS=/path/to/logos-storage-nim-bin/dist/v0.3.0-linux-amd64
 cargo build
 ```
 
