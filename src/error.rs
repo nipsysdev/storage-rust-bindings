@@ -34,6 +34,9 @@ pub enum StorageError {
     #[error("Operation cancelled: {operation}")]
     Cancelled { operation: String },
 
+    #[error("Missing callback: {message}")]
+    MissingCallback { message: String },
+
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -117,6 +120,12 @@ impl StorageError {
         }
     }
 
+    pub fn missing_callback(message: impl Into<String>) -> Self {
+        StorageError::MissingCallback {
+            message: message.into(),
+        }
+    }
+
     pub fn null_pointer(context: impl Into<String>) -> Self {
         StorageError::NullPointer {
             context: context.into(),
@@ -128,6 +137,7 @@ pub fn from_c_error(code: i32, message: &str) -> StorageError {
     match code {
         0 => StorageError::library_error(format!("Unexpected success with message: {}", message)),
         1 => StorageError::library_error(message),
+        2 => StorageError::missing_callback(message),
         _ => StorageError::library_error(format!("Unknown error code {}: {}", code, message)),
     }
 }
@@ -169,6 +179,9 @@ impl Clone for StorageError {
             },
             StorageError::Cancelled { operation } => StorageError::Cancelled {
                 operation: operation.clone(),
+            },
+            StorageError::MissingCallback { message } => StorageError::MissingCallback {
+                message: message.clone(),
             },
             StorageError::Io(_) => StorageError::library_error("I/O error"),
             StorageError::Json(_) => StorageError::library_error("JSON error"),

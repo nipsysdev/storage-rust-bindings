@@ -14,7 +14,7 @@ use storage_bindings::{
 };
 use tempfile::tempdir;
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize logging
     let _ = env_logger::try_init();

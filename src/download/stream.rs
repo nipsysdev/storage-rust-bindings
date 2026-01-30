@@ -41,152 +41,144 @@ pub async fn download_stream(
     cid: &str,
     options: DownloadStreamOptions,
 ) -> Result<DownloadResult> {
-    let node = node.clone();
-    let cid = cid.to_string();
-    let options = options.clone();
+    if cid.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "cid",
+            "CID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if cid.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "cid",
-                "CID cannot be empty",
-            ));
+    options.validate()?;
+
+    let start_time = std::time::Instant::now();
+    let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
+
+    let total_bytes = Arc::new(Mutex::new(0usize));
+    let total_bytes_clone = total_bytes.clone();
+
+    let file_handle = if let Some(ref filepath) = options.filepath {
+        match std::fs::File::create(filepath) {
+            Ok(file) => Some(Arc::new(Mutex::new(Some(file)))),
+            Err(e) => {
+                return Err(StorageError::Io(e));
+            }
         }
+    } else {
+        None
+    };
 
-        options.validate()?;
+    let future = CallbackFuture::new();
+    let context = future.context.clone();
 
-        let start_time = std::time::Instant::now();
-        let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
+    let file_handle_clone = file_handle.clone();
 
-        let total_bytes = Arc::new(Mutex::new(0usize));
-        let total_bytes_clone = total_bytes.clone();
-
-        let file_handle = if let Some(ref filepath) = options.filepath {
-            match std::fs::File::create(filepath) {
-                Ok(file) => Some(Arc::new(Mutex::new(Some(file)))),
-                Err(e) => {
-                    return Err(StorageError::Io(e));
+    let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
+    let tx_clone = tx.clone();
+    let writer_task = if options.writer.is_some() {
+        let mut writer = options.writer.unwrap();
+        Some(std::thread::spawn(move || {
+            while let Ok(chunk) = rx.recv() {
+                if let Err(e) = writer.write_all(&chunk) {
+                    eprintln!("Failed to write to writer: {}", e);
+                    break;
                 }
             }
-        } else {
-            None
-        };
+        }))
+    } else {
+        None
+    };
 
-        let future = CallbackFuture::new();
-        let context = future.context.clone();
+    context.set_progress_callback(move |_len, chunk| {
+        if let Some(chunk_bytes) = chunk {
+            let mut total = total_bytes_clone.lock().unwrap();
+            *total += chunk_bytes.len();
 
-        let file_handle_clone = file_handle.clone();
-
-        let (tx, rx) = std::sync::mpsc::channel::<Vec<u8>>();
-        let tx_clone = tx.clone();
-        let writer_task = if options.writer.is_some() {
-            let mut writer = options.writer.unwrap();
-            Some(std::thread::spawn(move || {
-                while let Ok(chunk) = rx.recv() {
-                    if let Err(e) = writer.write_all(&chunk) {
-                        eprintln!("Failed to write to writer: {}", e);
-                        break;
+            if let Some(ref file_handle) = file_handle_clone {
+                if let Some(ref mut file) = file_handle.lock().unwrap().as_mut() {
+                    if let Err(e) = file.write_all(chunk_bytes) {
+                        eprintln!("Failed to write to file: {}", e);
                     }
                 }
-            }))
-        } else {
-            None
-        };
-
-        context.set_progress_callback(move |_len, chunk| {
-            if let Some(chunk_bytes) = chunk {
-                let mut total = total_bytes_clone.lock().unwrap();
-                *total += chunk_bytes.len();
-
-                if let Some(ref file_handle) = file_handle_clone {
-                    if let Some(ref mut file) = file_handle.lock().unwrap().as_mut() {
-                        if let Err(e) = file.write_all(chunk_bytes) {
-                            eprintln!("Failed to write to file: {}", e);
-                        }
-                    }
-                }
-
-                if tx_clone.send(chunk_bytes.to_vec()).is_err() {
-                    eprintln!("Failed to send data to writer thread");
-                }
             }
-        });
 
-        let download_options = DownloadOptions::new(&cid)
-            .chunk_size(chunk_size)
-            .timeout(options.timeout.unwrap_or(300))
-            .verify(options.verify);
-
-        download_init_sync(&node, &cid, &download_options)?;
-
-        let context_ptr = future.context_ptr() as *mut c_void;
-        let cid_str = &cid;
-        let filepath_str = options
-            .filepath
-            .as_ref()
-            .and_then(|p| p.to_str())
-            .unwrap_or("");
-
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_cid = string_to_c_string(cid_str);
-                let c_filepath = string_to_c_string(filepath_str);
-
-                let result = storage_download_stream(
-                    ctx as *mut _,
-                    c_cid,
-                    chunk_size,
-                    options.local,
-                    c_filepath,
-                    Some(c_callback),
-                    context_ptr,
-                );
-
-                free_c_string(c_cid);
-                if !c_filepath.is_null() {
-                    free_c_string(c_filepath);
-                }
-
-                result
-            })
-        });
-
-        if result != 0 {
-            return Err(StorageError::download_error("Failed to download stream"));
-        }
-
-        future.wait()?;
-
-        drop(tx);
-
-        if let Some(handle) = writer_task {
-            if let Err(e) = handle.join() {
-                eprintln!("Writer thread failed: {:?}", e);
+            if tx_clone.send(chunk_bytes.to_vec()).is_err() {
+                eprintln!("Failed to send data to writer thread");
             }
         }
+    });
 
-        if let Some(file_handle) = file_handle {
-            if let Some(ref mut file) = file_handle.lock().unwrap().as_mut() {
-                if let Err(e) = file.flush() {
-                    eprintln!("Failed to flush file: {}", e);
-                }
+    let download_options = DownloadOptions::new(cid)
+        .chunk_size(chunk_size)
+        .timeout(options.timeout.unwrap_or(300))
+        .verify(options.verify);
+
+    download_init_sync(node, cid, &download_options)?;
+
+    let context_ptr = future.context_ptr() as *mut c_void;
+    let filepath_str = options
+        .filepath
+        .as_ref()
+        .and_then(|p| p.to_str())
+        .unwrap_or("");
+
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_cid = string_to_c_string(cid);
+            let c_filepath = string_to_c_string(filepath_str);
+
+            let result = storage_download_stream(
+                ctx as *mut _,
+                c_cid,
+                chunk_size,
+                options.local,
+                c_filepath,
+                Some(c_callback),
+                context_ptr,
+            );
+
+            free_c_string(c_cid);
+            if !c_filepath.is_null() {
+                free_c_string(c_filepath);
+            }
+
+            result
+        })
+    });
+
+    if result != 0 {
+        return Err(StorageError::download_error("Failed to download stream"));
+    }
+
+    future.await?;
+
+    drop(tx);
+
+    if let Some(handle) = writer_task {
+        if let Err(e) = handle.join() {
+            eprintln!("Writer thread failed: {:?}", e);
+        }
+    }
+
+    if let Some(file_handle) = file_handle {
+        if let Some(ref mut file) = file_handle.lock().unwrap().as_mut() {
+            if let Err(e) = file.flush() {
+                eprintln!("Failed to flush file: {}", e);
             }
         }
+    }
 
-        let duration = start_time.elapsed();
-        let bytes_downloaded = *total_bytes.lock().unwrap();
+    let duration = start_time.elapsed();
+    let bytes_downloaded = *total_bytes.lock().unwrap();
 
-        let mut result = DownloadResult::new(cid.to_string(), bytes_downloaded)
-            .duration_ms(duration.as_millis() as u64)
-            .verified(options.verify);
+    let mut result = DownloadResult::new(cid.to_string(), bytes_downloaded)
+        .duration_ms(duration.as_millis() as u64)
+        .verified(options.verify);
 
-        if let Some(filepath) = options.filepath {
-            result = result.filepath(filepath);
-        }
+    if let Some(filepath) = options.filepath {
+        result = result.filepath(filepath);
+    }
 
-        Ok(result)
-    })
-    .await?
+    Ok(result)
 }
 
 /// Download content directly to a file

@@ -32,56 +32,50 @@ use libc::c_void;
 /// - The chunk is empty
 /// - The upload fails for any reason
 pub async fn upload_chunk(node: &StorageNode, session_id: &str, chunk: Vec<u8>) -> Result<()> {
-    let node = node.clone();
-    let session_id = session_id.to_string();
+    if session_id.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "session_id",
+            "Session ID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if session_id.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "session_id",
-                "Session ID cannot be empty",
-            ));
-        }
+    if chunk.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "chunk",
+            "Chunk cannot be empty",
+        ));
+    }
 
-        if chunk.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "chunk",
-                "Chunk cannot be empty",
-            ));
-        }
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let chunk_ptr = chunk.as_ptr() as *mut u8;
+    let chunk_len = chunk.len();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let chunk_ptr = chunk.as_ptr() as *mut u8;
-        let chunk_len = chunk.len();
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_session_id = string_to_c_string(session_id);
+            let result = storage_upload_chunk(
+                ctx as *mut _,
+                c_session_id,
+                chunk_ptr,
+                chunk_len,
+                Some(c_callback),
+                context_ptr,
+            );
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_session_id = string_to_c_string(&session_id);
-                let result = storage_upload_chunk(
-                    ctx as *mut _,
-                    c_session_id,
-                    chunk_ptr,
-                    chunk_len,
-                    Some(c_callback),
-                    context_ptr,
-                );
+            free_c_string(c_session_id);
 
-                free_c_string(c_session_id);
+            result
+        })
+    });
 
-                result
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::upload_error("Failed to upload chunk"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::upload_error("Failed to upload chunk"));
-        }
-
-        future.wait()?;
-        Ok(())
-    })
-    .await?
+    future.await?;
+    Ok(())
 }
 
 /// Upload multiple chunks in sequence

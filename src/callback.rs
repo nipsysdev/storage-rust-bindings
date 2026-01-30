@@ -4,7 +4,6 @@ use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
 use std::task::{Context, Poll, Waker};
-use std::thread;
 use std::time::Duration;
 
 /// Type alias for the progress callback function type
@@ -128,24 +127,6 @@ impl CallbackContext {
             }
         }
     }
-
-    pub fn wait(&self) -> Result<String> {
-        for _ in 0..600 {
-            {
-                let completed = self.completed.lock().unwrap();
-                if *completed {
-                    break;
-                }
-            }
-            thread::sleep(Duration::from_millis(100));
-        }
-
-        if let Some(result) = self.get_result() {
-            result
-        } else {
-            Err(StorageError::timeout("callback operation"))
-        }
-    }
 }
 
 impl Drop for CallbackContext {
@@ -189,8 +170,32 @@ impl CallbackFuture {
         self.context.set_progress_callback(callback);
     }
 
-    pub fn wait(&self) -> Result<String> {
-        self.context.wait()
+    /// Wait for the callback to complete with a timeout (async)
+    ///
+    /// This method provides a timeout wrapper around the Future implementation.
+    /// If the callback does not complete within the specified duration, a timeout error is returned.
+    ///
+    /// # Arguments
+    ///
+    /// * `duration` - The maximum time to wait for the callback to complete
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::callback::CallbackFuture;
+    /// use std::time::Duration;
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let future = CallbackFuture::new();
+    ///     let result = future.wait_with_timeout(Duration::from_secs(30)).await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn wait_with_timeout(self, duration: Duration) -> Result<String> {
+        tokio::time::timeout(duration, self)
+            .await
+            .map_err(|_| StorageError::timeout("callback operation"))?
     }
 }
 
@@ -372,13 +377,13 @@ mod tests {
         assert!(result.is_err());
     }
 
-    #[test]
-    fn test_callback_wait_success() {
-        let context = CallbackContext::new();
+    #[tokio::test]
+    async fn test_callback_wait_success() {
+        let future = CallbackFuture::new();
         unsafe {
-            context.handle_callback(0, std::ptr::null_mut(), 0);
+            future.context.handle_callback(0, std::ptr::null_mut(), 0);
         }
-        let result = context.wait();
+        let result = future.await;
         assert!(result.is_ok());
     }
 

@@ -35,54 +35,47 @@ use libc::c_void;
 /// - The options are invalid
 /// - The download initialization fails
 pub async fn download_init(node: &StorageNode, cid: &str, options: &DownloadOptions) -> Result<()> {
-    let node = node.clone();
-    let cid = cid.to_string();
-    let options = options.clone();
+    if cid.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "cid",
+            "CID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if cid.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "cid",
-                "CID cannot be empty",
-            ));
-        }
+    options.validate()?;
 
-        options.validate()?;
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        node.with_ctx(|ctx| {
+            let c_cid = string_to_c_string(cid);
+            let result = storage_download_init(
+                ctx as *mut _,
+                c_cid,
+                chunk_size,
+                false,
+                Some(c_callback),
+                context_ptr,
+            );
 
-        let result = with_libstorage_lock(|| unsafe {
-            node.with_ctx(|ctx| {
-                let c_cid = string_to_c_string(&cid);
-                let result = storage_download_init(
-                    ctx as *mut _,
-                    c_cid,
-                    chunk_size,
-                    false,
-                    Some(c_callback),
-                    context_ptr,
-                );
+            free_c_string(c_cid);
 
-                free_c_string(c_cid);
+            result
+        })
+    });
 
-                result
-            })
-        });
+    if result != 0 {
+        return Err(StorageError::download_error(
+            "Failed to initialize download",
+        ));
+    }
 
-        if result != 0 {
-            return Err(StorageError::download_error(
-                "Failed to initialize download",
-            ));
-        }
+    future.await?;
 
-        future.wait()?;
-
-        Ok(())
-    })
-    .await?
+    Ok(())
 }
 
 /// Cancel a download session
@@ -105,41 +98,34 @@ pub async fn download_init(node: &StorageNode, cid: &str, options: &DownloadOpti
 /// - The CID is empty
 /// - The cancellation fails
 pub async fn download_cancel(node: &StorageNode, cid: &str) -> Result<()> {
-    let node = node.clone();
-    let cid = cid.to_string();
+    if cid.is_empty() {
+        return Err(StorageError::invalid_parameter(
+            "cid",
+            "CID cannot be empty",
+        ));
+    }
 
-    tokio::task::spawn_blocking(move || {
-        if cid.is_empty() {
-            return Err(StorageError::invalid_parameter(
-                "cid",
-                "CID cannot be empty",
-            ));
-        }
+    let future = CallbackFuture::new();
 
-        let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr() as *mut c_void;
 
-        let context_ptr = future.context_ptr() as *mut c_void;
+    let result = with_libstorage_lock(|| unsafe {
+        let ctx = node.ctx();
+        let c_cid = string_to_c_string(cid);
+        let result = storage_download_cancel(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        let result = with_libstorage_lock(|| unsafe {
-            let ctx = node.ctx();
-            let c_cid = string_to_c_string(&cid);
-            let result =
-                storage_download_cancel(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
+        free_c_string(c_cid);
 
-            free_c_string(c_cid);
+        result
+    });
 
-            result
-        });
+    if result != 0 {
+        return Err(StorageError::download_error("Failed to cancel download"));
+    }
 
-        if result != 0 {
-            return Err(StorageError::download_error("Failed to cancel download"));
-        }
+    future.await?;
 
-        future.wait()?;
-
-        Ok(())
-    })
-    .await?
+    Ok(())
 }
 
 /// Synchronous version of download_init for internal use
@@ -186,7 +172,7 @@ pub(crate) fn download_init_sync(
         ));
     }
 
-    future.wait()?;
+    tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
 
     Ok(())
 }
