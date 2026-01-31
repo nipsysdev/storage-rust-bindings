@@ -32,7 +32,9 @@ impl Default for CallbackContext {
 impl CallbackContext {
     pub fn new() -> Self {
         let id = {
-            let mut next_id = NEXT_CALLBACK_ID.lock().unwrap();
+            let mut next_id = NEXT_CALLBACK_ID
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             let id = *next_id;
             *next_id += 1;
             id
@@ -133,6 +135,9 @@ impl Drop for CallbackContext {
     fn drop(&mut self) {
         if let Ok(mut registry) = CALLBACK_REGISTRY.lock() {
             registry.remove(&self.id);
+        } else if let Err(poisoned) = CALLBACK_REGISTRY.lock() {
+            let mut registry = poisoned.into_inner();
+            registry.remove(&self.id);
         }
     }
 }
@@ -152,7 +157,9 @@ impl CallbackFuture {
         let context = Arc::new(CallbackContext::new());
 
         {
-            let mut registry = CALLBACK_REGISTRY.lock().unwrap();
+            let mut registry = CALLBACK_REGISTRY
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
             registry.insert(context.id(), context.clone());
         }
 
@@ -219,7 +226,9 @@ pub fn with_libstorage_lock<F, R>(f: F) -> R
 where
     F: FnOnce() -> R,
 {
-    let _lock = LIBSTORAGE_MUTEX.lock().unwrap();
+    let _lock = LIBSTORAGE_MUTEX
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     f()
 }
 
@@ -252,6 +261,9 @@ pub unsafe extern "C" fn c_callback(
 
     let context = {
         if let Ok(registry) = CALLBACK_REGISTRY.lock() {
+            registry.get(&callback_id).cloned()
+        } else if let Err(poisoned) = CALLBACK_REGISTRY.lock() {
+            let registry = poisoned.into_inner();
             registry.get(&callback_id).cloned()
         } else {
             None
