@@ -12,14 +12,56 @@ env:
   cache_nonce: 0
 
 jobs:
-  lint:
-    name: Lint
+  build:
+    name: Build
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Cache prebuilt binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/storage-bindings
+          key: storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ env.cache_nonce }}
+          restore-keys: |
+            storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+            storage-bindings-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang libclang-dev
+
+      - name: Install mise
+        uses: jdx/mise-action@v3
+        with:
+          enable: true
+          cache: true
+
+      - name: Run cargo build
+        run: cargo build --all-features --release
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache prebuilt binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/storage-bindings
+          key: storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ env.cache_nonce }}
+          restore-keys: |
+            storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+            storage-bindings-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -48,10 +90,20 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    needs: build
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Cache prebuilt binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/storage-bindings
+          key: storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ env.cache_nonce }}
+          restore-keys: |
+            storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+            storage-bindings-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -69,29 +121,6 @@ jobs:
         env:
           TZ: UTC
 
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang libclang-dev
-
-      - name: Install mise
-        uses: jdx/mise-action@v3
-        with:
-          enable: true
-          cache: true
-
-      - name: Run cargo build
-        run: cargo build --all-features --release
-
   publish:
     name: Publish
     runs-on: ubuntu-latest
@@ -102,6 +131,15 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Cache prebuilt binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/storage-bindings
+          key: storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-${{ env.cache_nonce }}
+          restore-keys: |
+            storage-bindings-${{ runner.os }}-${{ hashFiles('Cargo.toml') }}-
+            storage-bindings-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
