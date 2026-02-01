@@ -75,18 +75,18 @@
 //!         .data_dir("./storage");
 //!
 //!     // Create node
-//!     let node = StorageNode::new(config)?;
+//!     let node = StorageNode::new(config).await?;
 //!
 //!     // Start node
-//!     node.start_async().await?;
+//!     node.start().await?;
 //!
 //!     // Get node information
-//!     println!("Peer ID: {}", node.peer_id()?);
-//!     println!("Version: {}", node.version()?);
+//!     println!("Peer ID: {}", node.peer_id().await?);
+//!     println!("Version: {}", node.version().await?);
 //!
 //!     // Stop and destroy node
-//!     node.stop_async().await?;
-//!     node.destroy_async().await?;
+//!     node.stop().await?;
+//!     node.destroy().await?;
 //!
 //!     Ok(())
 //! }

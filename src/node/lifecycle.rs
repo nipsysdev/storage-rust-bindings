@@ -27,78 +27,95 @@ unsafe impl Send for StorageNode {}
 unsafe impl Sync for StorageNode {}
 
 impl StorageNode {
-    pub fn new(config: StorageConfig) -> Result<Self> {
-        with_libstorage_lock(|| {
-            let json_config = config.to_json()?;
-            let c_json_config = string_to_c_string(&json_config);
-
-            let future = CallbackFuture::new();
-
-            let node_ctx = unsafe {
-                let node_ctx = storage_new(
-                    c_json_config,
-                    Some(c_callback),
-                    future.context_ptr() as *mut c_void,
-                );
-
-                free_c_string(c_json_config);
-
-                if node_ctx.is_null() {
-                    return Err(StorageError::node_error("new", "Failed to create node"));
-                }
-
-                node_ctx
-            };
-
-            let _result =
-                tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-            Ok(StorageNode {
-                inner: Arc::new(Mutex::new(StorageNodeInner {
-                    ctx: node_ctx,
-                    started: false,
-                })),
-            })
-        })
-    }
-
-    pub fn start(&mut self) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        if inner.started {
-            return Err(StorageError::node_error("start", "Node is already started"));
-        }
+    /// Create a new Storage node
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::{LogLevel, StorageConfig, StorageNode};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let config = StorageConfig::new()
+    ///         .log_level(LogLevel::Info)
+    ///         .data_dir("./storage");
+    ///
+    ///     let node = StorageNode::new(config).await?;
+    ///     node.start().await?;
+    ///
+    ///     let peer_id = node.peer_id().await?;
+    ///     println!("Peer ID: {}", peer_id);
+    ///
+    ///     node.stop().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn new(config: StorageConfig) -> Result<Self> {
+        let json_config = config.to_json()?;
+        let c_json_config = string_to_c_string(&json_config);
 
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_start(
-                inner.ctx as *mut _,
+        let node_ctx = with_libstorage_lock(|| unsafe {
+            let node_ctx = storage_new(
+                c_json_config,
                 Some(c_callback),
                 future.context_ptr() as *mut c_void,
-            )
-        };
+            );
 
-        if result != 0 {
-            return Err(StorageError::node_error("start", "Failed to start node"));
-        }
+            free_c_string(c_json_config);
 
-        let _result =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
+            if node_ctx.is_null() {
+                return Err(StorageError::node_error("new", "Failed to create node"));
+            }
 
-        inner.started = true;
-        Ok(())
+            Ok(node_ctx)
+        })?;
+
+        let _result = future.await?;
+
+        Ok(StorageNode {
+            inner: Arc::new(Mutex::new(StorageNodeInner {
+                ctx: node_ctx,
+                started: false,
+            })),
+        })
     }
 
-    pub async fn start_async(&self) -> Result<()> {
+    /// Start the Storage node
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the node is already started.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::{LogLevel, StorageConfig, StorageNode};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let config = StorageConfig::new()
+    ///         .log_level(LogLevel::Info)
+    ///         .data_dir("./storage");
+    ///
+    ///     let node = StorageNode::new(config).await?;
+    ///     node.start().await?;
+    ///
+    ///     let peer_id = node.peer_id().await?;
+    ///     println!("Peer ID: {}", peer_id);
+    ///
+    ///     node.stop().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn start(&self) -> Result<()> {
         let node = self.clone();
 
         {
             let inner = node.inner.lock().unwrap();
             if inner.started {
-                return Err(StorageError::node_error(
-                    "start_async_send",
-                    "Node is already started",
-                ));
+                return Err(StorageError::node_error("start", "Node is already started"));
             }
         }
 
@@ -113,10 +130,7 @@ impl StorageNode {
             unsafe { storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
-            return Err(StorageError::node_error(
-                "start_async_send",
-                "Failed to start node",
-            ));
+            return Err(StorageError::node_error("start", "Failed to start node"));
         }
 
         let _result = future.await?;
@@ -129,40 +143,22 @@ impl StorageNode {
         Ok(())
     }
 
-    pub fn stop(&mut self) -> Result<()> {
-        let mut inner = self.inner.lock().unwrap();
-        if !inner.started {
-            return Err(StorageError::node_error("stop", "Node is not started"));
-        }
-
-        let future = CallbackFuture::new();
-
-        let result = unsafe {
-            storage_stop(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        };
-
-        if result != 0 {
-            return Err(StorageError::node_error("stop", "Failed to stop node"));
-        }
-
-        inner.started = false;
-        Ok(())
+    pub async fn start_async(&self) -> Result<()> {
+        self.start().await
     }
 
-    pub async fn stop_async(&self) -> Result<()> {
+    /// Stop the Storage node
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the node is not started.
+    pub async fn stop(&self) -> Result<()> {
         let node = self.clone();
 
         {
             let inner = node.inner.lock().unwrap();
             if !inner.started {
-                return Err(StorageError::node_error(
-                    "stop_async_send",
-                    "Node is not started",
-                ));
+                return Err(StorageError::node_error("stop", "Node is not started"));
             }
         }
 
@@ -177,10 +173,7 @@ impl StorageNode {
             unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
-            return Err(StorageError::node_error(
-                "stop_async_send",
-                "Failed to stop node",
-            ));
+            return Err(StorageError::node_error("stop", "Failed to stop node"));
         }
 
         let _result = future.await?;
@@ -193,6 +186,10 @@ impl StorageNode {
         Ok(())
     }
 
+    pub async fn stop_async(&self) -> Result<()> {
+        self.stop().await
+    }
+
     /// Close the Storage node
     ///
     /// This method closes the node and releases resources. The node must be
@@ -201,50 +198,14 @@ impl StorageNode {
     /// # Errors
     ///
     /// Returns an error if the node is still started.
-    pub fn close(&mut self) -> Result<()> {
-        let inner = self.inner.lock().unwrap();
-        if inner.started {
-            return Err(StorageError::node_error(
-                "close",
-                "Node must be stopped before closing",
-            ));
-        }
-
-        let future = CallbackFuture::new();
-
-        let result = unsafe {
-            storage_close(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        };
-
-        if result != 0 {
-            return Err(StorageError::node_error("close", "Failed to close node"));
-        }
-
-        let _result =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-        Ok(())
-    }
-
-    /// Close the Storage node (async version)
-    ///
-    /// This method closes the node and releases resources. The node must be
-    /// stopped before it can be closed.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the node is still started.
-    pub async fn close_async(&self) -> Result<()> {
+    pub async fn close(&self) -> Result<()> {
         let node = self.clone();
 
         {
             let inner = node.inner.lock().unwrap();
             if inner.started {
                 return Err(StorageError::node_error(
-                    "close_async",
+                    "close",
                     "Node must be stopped before closing",
                 ));
             }
@@ -261,50 +222,18 @@ impl StorageNode {
             unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
-            return Err(StorageError::node_error(
-                "close_async",
-                "Failed to close node",
-            ));
+            return Err(StorageError::node_error("close", "Failed to close node"));
         }
 
         future.await?;
         Ok(())
     }
 
-    pub fn destroy(self) -> Result<()> {
-        if Arc::strong_count(&self.inner) != 1 {
-            return Err(StorageError::node_error(
-                "destroy",
-                "Cannot destroy: multiple references exist",
-            ));
-        }
-
-        let ctx = {
-            let inner = self.inner.lock().unwrap();
-            if inner.started {
-                return Err(StorageError::node_error("destroy", "Node is still started"));
-            }
-            inner.ctx as *mut _
-        };
-
-        let future = CallbackFuture::new();
-
-        let result =
-            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
-
-        if result != 0 {
-            return Err(StorageError::node_error("destroy", "Failed to close node"));
-        }
-
-        let _result =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        unsafe { storage_destroy(ctx, None, ptr::null_mut()) };
-
-        Ok(())
+    pub async fn close_async(&self) -> Result<()> {
+        self.close().await
     }
 
-    /// Destroy the Storage node (async version)
+    /// Destroy the Storage node
     ///
     /// This method destroys the node and releases all resources. The node must be
     /// stopped before it can be destroyed. This method will automatically call
@@ -314,10 +243,10 @@ impl StorageNode {
     ///
     /// Returns an error if the node is still started or if there are multiple
     /// references to the node.
-    pub async fn destroy_async(self) -> Result<()> {
+    pub async fn destroy(self) -> Result<()> {
         if Arc::strong_count(&self.inner) != 1 {
             return Err(StorageError::node_error(
-                "destroy_async",
+                "destroy",
                 "Cannot destroy: multiple references exist",
             ));
         }
@@ -325,10 +254,7 @@ impl StorageNode {
         {
             let inner = self.inner.lock().unwrap();
             if inner.started {
-                return Err(StorageError::node_error(
-                    "destroy_async",
-                    "Node is still started",
-                ));
+                return Err(StorageError::node_error("destroy", "Node is still started"));
             }
         }
 
@@ -343,10 +269,7 @@ impl StorageNode {
             unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
-            return Err(StorageError::node_error(
-                "destroy_async",
-                "Failed to close node",
-            ));
+            return Err(StorageError::node_error("destroy", "Failed to close node"));
         }
 
         future.await?;
@@ -361,41 +284,64 @@ impl StorageNode {
         Ok(())
     }
 
-    pub fn version(&self) -> Result<String> {
-        let inner = self.inner.lock().unwrap();
+    pub async fn destroy_async(self) -> Result<()> {
+        self.destroy().await
+    }
 
+    /// Get the version of the Storage node
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::{LogLevel, StorageConfig, StorageNode};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let config = StorageConfig::new()
+    ///         .log_level(LogLevel::Info)
+    ///         .data_dir("./storage");
+    ///
+    ///     let node = StorageNode::new(config).await?;
+    ///     node.start().await?;
+    ///
+    ///     let version = node.version().await?;
+    ///     println!("Version: {}", version);
+    ///
+    ///     node.stop().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn version(&self) -> Result<String> {
+        let node = self.clone();
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_version(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
         };
+
+        let result =
+            unsafe { storage_version(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
             return Err(StorageError::node_error("version", "Failed to get version"));
         }
 
-        let version =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        Ok(version)
+        future.await
     }
 
-    pub fn revision(&self) -> Result<String> {
-        let inner = self.inner.lock().unwrap();
-
+    /// Get the revision of the Storage node
+    pub async fn revision(&self) -> Result<String> {
+        let node = self.clone();
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_revision(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
         };
+
+        let result =
+            unsafe { storage_revision(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
             return Err(StorageError::node_error(
@@ -404,79 +350,89 @@ impl StorageNode {
             ));
         }
 
-        let revision =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        Ok(revision)
+        future.await
     }
 
-    pub fn repo(&self) -> Result<String> {
-        let inner = self.inner.lock().unwrap();
-
+    /// Get the repository path of the Storage node
+    pub async fn repo(&self) -> Result<String> {
+        let node = self.clone();
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_repo(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
         };
+
+        let result =
+            unsafe { storage_repo(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
             return Err(StorageError::node_error("repo", "Failed to get repo path"));
         }
 
-        let repo =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        Ok(repo)
+        future.await
     }
 
-    pub fn spr(&self) -> Result<String> {
-        let inner = self.inner.lock().unwrap();
-
+    /// Get the SPR (Storage Provider Record) of the Storage node
+    pub async fn spr(&self) -> Result<String> {
+        let node = self.clone();
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_spr(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
         };
+
+        let result =
+            unsafe { storage_spr(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
             return Err(StorageError::node_error("spr", "Failed to get SPR"));
         }
 
-        let spr =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        Ok(spr)
+        future.await
     }
 
-    pub fn peer_id(&self) -> Result<String> {
-        let inner = self.inner.lock().unwrap();
-
+    /// Get the peer ID of the Storage node
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use storage_bindings::{LogLevel, StorageConfig, StorageNode};
+    ///
+    /// #[tokio::main]
+    /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let config = StorageConfig::new()
+    ///         .log_level(LogLevel::Info)
+    ///         .data_dir("./storage");
+    ///
+    ///     let node = StorageNode::new(config).await?;
+    ///     node.start().await?;
+    ///
+    ///     let peer_id = node.peer_id().await?;
+    ///     println!("Peer ID: {}", peer_id);
+    ///
+    ///     node.stop().await?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub async fn peer_id(&self) -> Result<String> {
+        let node = self.clone();
         let future = CallbackFuture::new();
 
-        let result = unsafe {
-            storage_peer_id(
-                inner.ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
+        let ctx = {
+            let inner = node.inner.lock().unwrap();
+            inner.ctx as *mut _
         };
+
+        let result =
+            unsafe { storage_peer_id(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
 
         if result != 0 {
             return Err(StorageError::node_error("peer_id", "Failed to get peer ID"));
         }
 
-        let peer_id =
-            tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))?;
-
-        Ok(peer_id)
+        future.await
     }
 
     pub fn is_started(&self) -> bool {

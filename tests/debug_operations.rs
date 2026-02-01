@@ -29,8 +29,8 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and start a Storage node
     println!("Creating and starting Storage node...");
-    let mut node = StorageNode::new(config)?;
-    node.start()?;
+    let node = StorageNode::new(config).await?;
+    node.start().await?;
     println!("Node started successfully!");
 
     // Get initial debug information
@@ -161,7 +161,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         .data_dir(temp_dir.path().join("storage_data2"))
         .discovery_port(8096);
 
-    let node2 = StorageNode::new(config2)?;
+    let node2 = StorageNode::new(config2).await?;
     // Don't start the node
 
     // These should work even if the node is not started
@@ -188,7 +188,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Clean up the second node
-    node2.destroy()?;
+    node2.destroy().await?;
 
     // Test concurrent debug operations
     println!("\n=== Testing Concurrent Debug Operations ===");
@@ -244,8 +244,8 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stop and destroy the node
     println!("\n=== Cleanup ===");
-    node.stop()?;
-    node.destroy()?;
+    node.stop().await?;
+    node.destroy().await?;
     println!("Node stopped and destroyed.");
 
     println!("\nDebug operations test completed successfully!");

@@ -42,18 +42,18 @@ async fn test_basic_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a new Storage node
     println!("Creating Storage node...");
-    let mut node = StorageNode::new(config)?;
+    let node = StorageNode::new(config).await?;
 
     // Start the node
     println!("Starting Storage node...");
-    node.start()?;
+    node.start().await?;
     println!("Node started successfully!");
 
     // Get node information
     println!("Node information:");
-    println!("  Version: {}", node.version()?);
-    println!("  Peer ID: {}", node.peer_id()?);
-    println!("  Repository: {}", node.repo()?);
+    println!("  Version: {}", node.version().await?);
+    println!("  Peer ID: {}", node.peer_id().await?);
+    println!("  Repository: {}", node.repo().await?);
 
     // Upload the file
     println!("Uploading file...");
@@ -105,11 +105,11 @@ async fn test_basic_usage() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stop and destroy the node
     println!("Stopping Storage node...");
-    node.stop()?;
+    node.stop().await?;
     println!("Node stopped.");
 
     println!("Destroying Storage node...");
-    node.destroy()?;
+    node.destroy().await?;
     println!("Node destroyed.");
 
     println!("Basic usage test completed successfully!");

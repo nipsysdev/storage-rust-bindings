@@ -30,19 +30,19 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and start a Storage node
     println!("Creating and starting Storage node...");
-    let mut node = StorageNode::new(config)?;
-    node.start()?;
+    let node = StorageNode::new(config).await?;
+    node.start().await?;
     println!("Node started successfully!");
 
     // Get our node's peer ID
     println!("\n=== Node Information ===");
-    let peer_id = node.peer_id()?;
+    let peer_id = node.peer_id().await?;
     println!("Our peer ID: {}", peer_id);
 
-    let version = node.version()?;
+    let version = node.version().await?;
     println!("Node version: {}", version);
 
-    let repo = node.repo()?;
+    let repo = node.repo().await?;
     println!("Repository path: {}", repo);
 
     // Test P2P operations
@@ -165,8 +165,8 @@ async fn test_p2p_networking() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stop and destroy the node
     println!("\n=== Cleanup ===");
-    node.stop()?;
-    node.destroy()?;
+    node.stop().await?;
+    node.destroy().await?;
     println!("Node stopped and destroyed.");
 
     println!("\nP2P networking test completed successfully!");

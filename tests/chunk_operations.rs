@@ -22,8 +22,8 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
         .discovery_port(8094);
 
     println!("Creating and starting Storage node...");
-    let mut node = StorageNode::new(config)?;
-    node.start()?;
+    let node = StorageNode::new(config).await?;
+    node.start().await?;
     println!("Node started successfully!");
 
     let test_data = b"Hello, Storage! This is a test file for chunk-based upload. ";
@@ -206,8 +206,8 @@ async fn test_chunk_operations() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== Cleanup ===");
-    node.stop()?;
-    node.destroy()?;
+    node.stop().await?;
+    node.destroy().await?;
     println!("Node stopped and destroyed.");
 
     println!("\nChunk operations test completed successfully!");

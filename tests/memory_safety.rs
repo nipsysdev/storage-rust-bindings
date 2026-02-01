@@ -44,10 +44,10 @@ async fn test_no_memory_leak() {
             .data_dir(temp_dir.path().join(format!("storage_{}", i)))
             .discovery_port(8090 + i as u16); // Use unique port to avoid conflicts
 
-        let node = StorageNode::new(config).unwrap();
-        node.start_async().await.unwrap();
-        node.stop_async().await.unwrap();
-        node.destroy_async().await.unwrap();
+        let node = StorageNode::new(config).await.unwrap();
+        node.start().await.unwrap();
+        node.stop().await.unwrap();
+        node.destroy().await.unwrap();
         // Node should be dropped here
     }
 }
@@ -63,16 +63,16 @@ async fn test_no_memory_leak_with_operations() {
             .data_dir(temp_dir.path().join(format!("storage_{}", i)))
             .discovery_port(8090 + i as u16); // Use unique port to avoid conflicts
 
-        let node = StorageNode::new(config).unwrap();
-        node.start_async().await.unwrap();
+        let node = StorageNode::new(config).await.unwrap();
+        node.start().await.unwrap();
 
         // Perform various operations
-        let _version = node.version().unwrap();
-        let _peer_id = node.peer_id().unwrap();
-        let _repo = node.repo().unwrap();
+        let _version = node.version().await.unwrap();
+        let _peer_id = node.peer_id().await.unwrap();
+        let _repo = node.repo().await.unwrap();
 
-        node.stop_async().await.unwrap();
-        node.destroy_async().await.unwrap();
+        node.stop().await.unwrap();
+        node.destroy().await.unwrap();
     }
 }
 
@@ -83,12 +83,12 @@ async fn test_context_invalidated_after_destroy() {
         .log_level(LogLevel::Error)
         .data_dir(temp_dir.path().join("storage"));
 
-    let node = StorageNode::new(config).unwrap();
-    node.start_async().await.unwrap();
-    node.stop_async().await.unwrap();
+    let node = StorageNode::new(config).await.unwrap();
+    node.start().await.unwrap();
+    node.stop().await.unwrap();
 
     // Destroy the node
-    node.destroy_async().await.unwrap();
+    node.destroy().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -99,11 +99,11 @@ async fn test_no_double_free() {
         .data_dir(temp_dir.path().join("storage"))
         .discovery_port(8090);
 
-    let node = StorageNode::new(config).unwrap();
-    node.start_async().await.unwrap();
-    node.stop_async().await.unwrap();
-    node.destroy_async().await.unwrap();
-    // Node is already dropped after destroy_async
+    let node = StorageNode::new(config).await.unwrap();
+    node.start().await.unwrap();
+    node.stop().await.unwrap();
+    node.destroy().await.unwrap();
+    // Node is already dropped after destroy
 
     // Create another node to ensure no corruption
     let temp_dir2 = tempdir().unwrap();
@@ -112,10 +112,10 @@ async fn test_no_double_free() {
         .data_dir(temp_dir2.path().join("storage2"))
         .discovery_port(8091);
 
-    let node2 = StorageNode::new(config2).unwrap();
-    node2.start_async().await.unwrap();
-    node2.stop_async().await.unwrap();
-    node2.destroy_async().await.unwrap();
+    let node2 = StorageNode::new(config2).await.unwrap();
+    node2.start().await.unwrap();
+    node2.stop().await.unwrap();
+    node2.destroy().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -126,21 +126,21 @@ async fn test_multiple_references_prevent_destroy() {
         .data_dir(temp_dir.path().join("storage"))
         .discovery_port(8092);
 
-    let node = StorageNode::new(config).unwrap();
+    let node = StorageNode::new(config).await.unwrap();
     let node_clone = node.clone(); // Create a second reference
 
-    node.start_async().await.unwrap();
-    node.stop_async().await.unwrap();
+    node.start().await.unwrap();
+    node.stop().await.unwrap();
 
     // Destroy should fail because there are multiple references
-    let result = node.clone().destroy_async().await;
+    let result = node.clone().destroy().await;
     assert!(result.is_err());
 
     // Drop the clone
     drop(node_clone);
 
     // Now destroy should succeed
-    let result = node.destroy_async().await;
+    let result = node.destroy().await;
     assert!(result.is_ok());
 }
 
@@ -152,10 +152,10 @@ async fn test_lifecycle_cleanup() {
         .data_dir(temp_dir.path().join("storage"))
         .discovery_port(8093);
 
-    let node = StorageNode::new(config).unwrap();
-    node.start_async().await.unwrap();
-    node.stop_async().await.unwrap();
-    node.destroy_async().await.unwrap();
+    let node = StorageNode::new(config).await.unwrap();
+    node.start().await.unwrap();
+    node.stop().await.unwrap();
+    node.destroy().await.unwrap();
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -167,8 +167,8 @@ async fn test_drop_cleanup() {
         .discovery_port(8094);
 
     {
-        let node = StorageNode::new(config).unwrap();
-        node.start_async().await.unwrap();
+        let node = StorageNode::new(config).await.unwrap();
+        node.start().await.unwrap();
         // Node will be dropped here without explicit destroy
     }
 }

@@ -54,11 +54,11 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
             "/ip4/0.0.0.0/tcp/0".to_string(),
         ]);
 
-    let mut node1 = StorageNode::new(node1_config)?;
-    node1.start()?;
+    let node1 = StorageNode::new(node1_config).await?;
+    node1.start().await?;
 
-    let node1_peer_id = node1.peer_id()?;
-    let node1_repo = node1.repo()?;
+    let node1_peer_id = node1.peer_id().await?;
+    let node1_repo = node1.repo().await?;
     let debug1 = storage_bindings::debug(&node1).await?;
 
     println!("Node 1 started:");
@@ -82,11 +82,11 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
         "/ip4/0.0.0.0/tcp/0".to_string(),
     ];
 
-    let mut node2 = StorageNode::new(node2_config)?;
-    node2.start()?;
+    let node2 = StorageNode::new(node2_config).await?;
+    node2.start().await?;
 
-    let node2_peer_id = node2.peer_id()?;
-    let node2_repo = node2.repo()?;
+    let node2_peer_id = node2.peer_id().await?;
+    let node2_repo = node2.repo().await?;
 
     println!("Node 2 started:");
     println!("  Peer ID: {}", node2_peer_id);
@@ -296,13 +296,13 @@ async fn test_two_node_network() -> Result<(), Box<dyn std::error::Error>> {
     // Stop and destroy both nodes
     println!("\n=== Cleanup ===");
     println!("Stopping node1...");
-    node1.stop()?;
-    node1.destroy()?;
+    node1.stop().await?;
+    node1.destroy().await?;
     println!("Node1 stopped and destroyed.");
 
     println!("Stopping node2...");
-    node2.stop()?;
-    node2.destroy()?;
+    node2.stop().await?;
+    node2.destroy().await?;
     println!("Node2 stopped and destroyed.");
 
     println!("\nTwo-node network test completed!");

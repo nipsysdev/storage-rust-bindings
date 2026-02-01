@@ -41,8 +41,8 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create and start a Storage node
     println!("Creating and starting Storage node...");
-    let mut node = StorageNode::new(config)?;
-    node.start()?;
+    let node = StorageNode::new(config).await?;
+    node.start().await?;
     println!("Node started successfully!");
 
     // Get initial storage information
@@ -200,8 +200,8 @@ async fn test_storage_management() -> Result<(), Box<dyn std::error::Error>> {
 
     // Stop and destroy the node
     println!("\n=== Cleanup ===");
-    node.stop()?;
-    node.destroy()?;
+    node.stop().await?;
+    node.destroy().await?;
     println!("Node stopped and destroyed.");
 
     println!("\nStorage management test completed successfully!");
