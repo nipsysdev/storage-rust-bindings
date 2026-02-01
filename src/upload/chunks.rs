@@ -6,9 +6,8 @@
 
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_upload_chunk, string_to_c_string};
+use crate::ffi::{storage_upload_chunk, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 
 /// Upload a chunk of data as part of an ongoing upload session
 ///
@@ -47,26 +46,23 @@ pub async fn upload_chunk(node: &StorageNode, session_id: &str, chunk: Vec<u8>) 
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let chunk_ptr = chunk.as_ptr() as *mut u8;
     let chunk_len = chunk.len();
-    let context_ptr = future.context_ptr() as *mut c_void;
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = string_to_c_string(session_id);
-            let result = storage_upload_chunk(
+
+            storage_upload_chunk(
                 ctx as *mut _,
-                c_session_id,
+                c_session_id.as_ptr(),
                 chunk_ptr,
                 chunk_len,
                 Some(c_callback),
-                context_ptr,
-            );
-
-            free_c_string(c_session_id);
-
-            result
+                context_ptr.as_ptr(),
+            )
         })
     });
 

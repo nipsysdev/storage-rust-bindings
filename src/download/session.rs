@@ -7,11 +7,8 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::download::types::DownloadOptions;
 use crate::error::{Result, StorageError};
-use crate::ffi::{
-    free_c_string, storage_download_cancel, storage_download_init, string_to_c_string,
-};
+use crate::ffi::{storage_download_cancel, storage_download_init, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 
 /// Initialize a download session
 ///
@@ -45,25 +42,22 @@ pub async fn download_init(node: &StorageNode, cid: &str, options: &DownloadOpti
     options.validate()?;
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-    let context_ptr = future.context_ptr() as *mut c_void;
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_cid = string_to_c_string(cid);
-            let result = storage_download_init(
+
+            storage_download_init(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 chunk_size,
                 false,
                 Some(c_callback),
-                context_ptr,
-            );
-
-            free_c_string(c_cid);
-
-            result
+                context_ptr.as_ptr(),
+            )
         })
     });
 
@@ -106,17 +100,18 @@ pub async fn download_cancel(node: &StorageNode, cid: &str) -> Result<()> {
     }
 
     let future = CallbackFuture::new();
-
-    let context_ptr = future.context_ptr() as *mut c_void;
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
         let ctx = node.ctx();
         let c_cid = string_to_c_string(cid);
-        let result = storage_download_cancel(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        free_c_string(c_cid);
-
-        result
+        storage_download_cancel(
+            ctx as *mut _,
+            c_cid.as_ptr(),
+            Some(c_callback),
+            context_ptr.as_ptr(),
+        )
     });
 
     if result != 0 {
@@ -144,25 +139,22 @@ pub(crate) fn download_init_sync(
     options.validate()?;
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-    let context_ptr = future.context_ptr() as *mut c_void;
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_cid = string_to_c_string(cid);
-            let result = storage_download_init(
+
+            storage_download_init(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 chunk_size,
                 false,
                 Some(c_callback),
-                context_ptr,
-            );
-
-            free_c_string(c_cid);
-
-            result
+                context_ptr.as_ptr(),
+            )
         })
     });
 

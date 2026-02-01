@@ -7,12 +7,10 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
 use crate::ffi::{
-    free_c_string, storage_upload_cancel, storage_upload_finalize, storage_upload_init,
-    string_to_c_string,
+    storage_upload_cancel, storage_upload_finalize, storage_upload_init, string_to_c_string,
 };
 use crate::node::lifecycle::StorageNode;
 use crate::upload::types::UploadOptions;
-use libc::c_void;
 
 /// Initialize an upload session
 ///
@@ -31,6 +29,7 @@ pub async fn upload_init(node: &StorageNode, options: &UploadOptions) -> Result<
     options.validate()?;
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let filepath_str = options
         .filepath
@@ -39,24 +38,18 @@ pub async fn upload_init(node: &StorageNode, options: &UploadOptions) -> Result<
         .unwrap_or("");
 
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-    let context_ptr = future.context_ptr() as *mut c_void;
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_filepath = string_to_c_string(filepath_str);
-            let result = storage_upload_init(
+
+            storage_upload_init(
                 ctx as *mut _,
-                c_filepath,
+                c_filepath.as_ptr(),
                 chunk_size,
                 Some(c_callback),
-                context_ptr,
-            );
-
-            if !c_filepath.is_null() {
-                free_c_string(c_filepath);
-            }
-
-            result
+                context_ptr.as_ptr(),
+            )
         })
     });
 
@@ -90,18 +83,18 @@ pub async fn upload_finalize(node: &StorageNode, session_id: &str) -> Result<Str
     }
 
     let future = CallbackFuture::new();
-
-    let context_ptr = future.context_ptr() as *mut c_void;
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = string_to_c_string(session_id);
-            let result =
-                storage_upload_finalize(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
-            free_c_string(c_session_id);
-
-            result
+            storage_upload_finalize(
+                ctx as *mut _,
+                c_session_id.as_ptr(),
+                Some(c_callback),
+                context_ptr.as_ptr(),
+            )
         })
     });
 
@@ -131,18 +124,18 @@ pub async fn upload_cancel(node: &StorageNode, session_id: &str) -> Result<()> {
     }
 
     let future = CallbackFuture::new();
-
-    let context_ptr = future.context_ptr() as *mut c_void;
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = string_to_c_string(session_id);
-            let result =
-                storage_upload_cancel(ctx as *mut _, c_session_id, Some(c_callback), context_ptr);
 
-            free_c_string(c_session_id);
-
-            result
+            storage_upload_cancel(
+                ctx as *mut _,
+                c_session_id.as_ptr(),
+                Some(c_callback),
+                context_ptr.as_ptr(),
+            )
         })
     });
 

@@ -1,9 +1,8 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
 use crate::ffi::{
-    free_c_string, storage_close, storage_destroy, storage_new, storage_peer_id, storage_repo,
-    storage_revision, storage_spr, storage_start, storage_stop, storage_version,
-    string_to_c_string, SendSafePtr,
+    storage_close, storage_destroy, storage_new, storage_peer_id, storage_repo, storage_revision,
+    storage_spr, storage_start, storage_stop, storage_version, string_to_c_string, SendSafePtr,
 };
 use crate::node::config::StorageConfig;
 use libc::c_void;
@@ -52,24 +51,48 @@ impl StorageNode {
     /// ```
     pub async fn new(config: StorageConfig) -> Result<Self> {
         let json_config = config.to_json()?;
-        let c_json_config = string_to_c_string(&json_config);
 
-        let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        // Use a blocking task to avoid capturing the CallbackFuture in the async block
+        let node_ctx_ptr = tokio::task::spawn_blocking(move || {
+            // Create the CallbackFuture inside the blocking task
+            let future = CallbackFuture::new();
+            let context_id = future.context_id();
 
-        let node_ctx = with_libstorage_lock(|| unsafe {
-            let node_ctx = storage_new(c_json_config, Some(c_callback), context_ptr.as_ptr());
+            // Call storage_new inside the lock, using the context ID
+            let node_ctx = with_libstorage_lock(|| {
+                let c_json_config = string_to_c_string(&json_config);
 
-            free_c_string(c_json_config);
+                unsafe {
+                    let node_ctx = storage_new(
+                        c_json_config.as_ptr(),
+                        Some(c_callback),
+                        context_id as *mut c_void,
+                    );
 
-            if node_ctx.is_null() {
-                return Err(StorageError::node_error("new", "Failed to create node"));
-            }
+                    // c_json_config is automatically freed when it goes out of scope here
 
-            Ok(node_ctx)
-        })?;
+                    if node_ctx.is_null() {
+                        return Err(StorageError::node_error("new", "Failed to create node"));
+                    }
 
-        let _result = future.await?;
+                    Ok(node_ctx)
+                }
+            })?;
+
+            // Wrap the raw pointer in SendSafePtr to make it Send
+            let node_ctx_ptr = unsafe { SendSafePtr::new(node_ctx) };
+
+            // Wait for the callback to complete
+            let rt = tokio::runtime::Handle::current();
+            let result = rt.block_on(future)?;
+
+            Ok::<(SendSafePtr<c_void>, String), StorageError>((node_ctx_ptr, result))
+        })
+        .await
+        .map_err(|e| StorageError::node_error("new", format!("Blocking task failed: {}", e)))??;
+
+        // Extract the raw pointer from SendSafePtr
+        let node_ctx = unsafe { node_ctx_ptr.0.as_ptr() };
 
         Ok(StorageNode {
             inner: Arc::new(Mutex::new(StorageNodeInner {
@@ -117,7 +140,7 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -160,7 +183,7 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -209,7 +232,7 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -256,7 +279,7 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = self.inner.lock().unwrap();
@@ -311,7 +334,7 @@ impl StorageNode {
     pub async fn version(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -331,7 +354,7 @@ impl StorageNode {
     pub async fn revision(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -354,7 +377,7 @@ impl StorageNode {
     pub async fn repo(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -374,7 +397,7 @@ impl StorageNode {
     pub async fn spr(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
@@ -416,7 +439,7 @@ impl StorageNode {
     pub async fn peer_id(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
-        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+        let context_ptr = future.context_ptr();
 
         let ctx = {
             let inner = node.inner.lock().unwrap();

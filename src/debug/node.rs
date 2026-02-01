@@ -1,8 +1,7 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_debug, storage_log_level, string_to_c_string};
+use crate::ffi::{storage_debug, storage_log_level, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
@@ -119,15 +118,10 @@ impl Default for DebugInfo {
 
 pub async fn debug(node: &StorageNode) -> Result<DebugInfo> {
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
-        node.with_ctx(|ctx| {
-            storage_debug(
-                ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        })
+        node.with_ctx(|ctx| storage_debug(ctx as *mut _, Some(c_callback), context_ptr.as_ptr()))
     });
 
     if result != 0 {
@@ -144,6 +138,7 @@ pub async fn debug(node: &StorageNode) -> Result<DebugInfo> {
 
 pub async fn update_log_level(node: &StorageNode, log_level: LogLevel) -> Result<()> {
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_log_level = string_to_c_string(&log_level.to_string());
 
@@ -151,16 +146,12 @@ pub async fn update_log_level(node: &StorageNode, log_level: LogLevel) -> Result
         node.with_ctx(|ctx| {
             storage_log_level(
                 ctx as *mut _,
-                c_log_level,
+                c_log_level.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     });
-
-    unsafe {
-        free_c_string(c_log_level);
-    }
 
     if result != 0 {
         return Err(StorageError::library_error("Failed to update log level"));

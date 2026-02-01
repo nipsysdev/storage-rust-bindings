@@ -4,10 +4,9 @@
 
 use crate::callback::{c_callback, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_peer_debug, string_to_c_string};
+use crate::ffi::{storage_peer_debug, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
 use crate::p2p::types::PeerRecord;
-use libc::c_void;
 
 /// Get detailed debug information about a specific peer
 ///
@@ -29,6 +28,7 @@ pub async fn peer_debug(node: &StorageNode, peer_id: &str) -> Result<PeerRecord>
 
     // Create a callback future for the operation
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_peer_id = string_to_c_string(peer_id);
 
@@ -37,17 +37,12 @@ pub async fn peer_debug(node: &StorageNode, peer_id: &str) -> Result<PeerRecord>
         node.with_ctx(|ctx| {
             storage_peer_debug(
                 ctx as *mut _,
-                c_peer_id,
+                c_peer_id.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     };
-
-    // Clean up
-    unsafe {
-        free_c_string(c_peer_id);
-    }
 
     if result != 0 {
         return Err(StorageError::library_error("Failed to get peer debug info"));

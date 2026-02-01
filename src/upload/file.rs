@@ -6,10 +6,9 @@
 
 use crate::callback::{c_callback, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_upload_file, string_to_c_string, SendSafePtr};
+use crate::ffi::{storage_upload_file, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
 use crate::upload::types::{UploadOptions, UploadProgress, UploadResult};
-use libc::c_void;
 use std::io::Read;
 use std::path::Path;
 
@@ -58,22 +57,18 @@ pub async fn upload_file(node: &StorageNode, options: UploadOptions) -> Result<U
     let session_id = upload_init_sync(node, &options)?;
 
     let future = CallbackFuture::new();
-
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
 
     let result = unsafe {
         node.with_ctx_locked(|ctx| {
             let c_session_id = string_to_c_string(&session_id);
-            let result = storage_upload_file(
+
+            storage_upload_file(
                 ctx as *mut _,
-                c_session_id,
+                c_session_id.as_ptr(),
                 Some(c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            free_c_string(c_session_id);
-
-            result
+            )
         })
     };
 
@@ -186,24 +181,19 @@ fn upload_init_sync(node: &StorageNode, options: &UploadOptions) -> Result<Strin
         .unwrap_or("");
 
     let chunk_size = options.chunk_size.unwrap_or(1024 * 1024);
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
 
     let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_filepath = crate::ffi::string_to_c_string(filepath_str);
-            let result = crate::ffi::storage_upload_init(
+
+            crate::ffi::storage_upload_init(
                 ctx as *mut _,
-                c_filepath,
+                c_filepath.as_ptr(),
                 chunk_size,
                 Some(crate::callback::c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            if !c_filepath.is_null() {
-                crate::ffi::free_c_string(c_filepath);
-            }
-
-            result
+            )
         })
     });
 
@@ -236,23 +226,20 @@ fn upload_chunk_sync(node: &StorageNode, session_id: &str, chunk: &[u8]) -> Resu
 
     let chunk_ptr = chunk.as_ptr() as *mut u8;
     let chunk_len = chunk.len();
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
 
     let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::storage_upload_chunk(
+
+            crate::ffi::storage_upload_chunk(
                 ctx as *mut _,
-                c_session_id,
+                c_session_id.as_ptr(),
                 chunk_ptr,
                 chunk_len,
                 Some(crate::callback::c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            crate::ffi::free_c_string(c_session_id);
-
-            result
+            )
         })
     });
 
@@ -275,21 +262,18 @@ fn upload_finalize_sync(node: &StorageNode, session_id: &str) -> Result<String> 
 
     let future = CallbackFuture::new();
 
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
 
     let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::storage_upload_finalize(
+
+            crate::ffi::storage_upload_finalize(
                 ctx as *mut _,
-                c_session_id,
+                c_session_id.as_ptr(),
                 Some(crate::callback::c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            crate::ffi::free_c_string(c_session_id);
-
-            result
+            )
         })
     });
 
@@ -312,21 +296,18 @@ fn upload_cancel_sync(node: &StorageNode, session_id: &str) -> Result<()> {
 
     let future = CallbackFuture::new();
 
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
 
     let result = crate::callback::with_libstorage_lock(|| unsafe {
         node.with_ctx(|ctx| {
             let c_session_id = crate::ffi::string_to_c_string(session_id);
-            let result = crate::ffi::storage_upload_cancel(
+
+            crate::ffi::storage_upload_cancel(
                 ctx as *mut _,
-                c_session_id,
+                c_session_id.as_ptr(),
                 Some(crate::callback::c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            crate::ffi::free_c_string(c_session_id);
-
-            result
+            )
         })
     });
 

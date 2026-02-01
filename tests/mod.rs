@@ -13,4 +13,5 @@ pub mod chunk_operations;
 pub mod debug_operations;
 pub mod p2p_networking;
 pub mod storage_management;
+pub mod thread_safety;
 pub mod two_node_network;

@@ -1,5 +1,5 @@
 use crate::error::{Result, StorageError};
-use crate::ffi::{c_str_to_string, CallbackReturn};
+use crate::ffi::{c_str_to_string, CallbackReturn, SendSafePtr};
 use libc::{c_char, c_int, c_void, size_t};
 use std::collections::HashMap;
 use std::sync::{Arc, LazyLock, Mutex};
@@ -169,8 +169,12 @@ impl CallbackFuture {
         Self { context }
     }
 
-    pub fn context_ptr(&self) -> *const c_void {
-        self.context.id() as *const c_void
+    pub fn context_ptr(&self) -> SendSafePtr<c_void> {
+        unsafe { SendSafePtr::new(self.context.id() as *mut c_void) }
+    }
+
+    pub fn context_id(&self) -> u64 {
+        self.context.id()
     }
 
     pub fn set_progress_callback<F>(&self, callback: F)
@@ -413,11 +417,10 @@ mod tests {
     #[test]
     fn test_c_callback_with_valid_context() {
         let future = CallbackFuture::new();
-        let context_id = future.context.id();
-        let context_ptr = context_id as *mut c_void;
+        let context_ptr = future.context_ptr();
 
         unsafe {
-            c_callback(0, std::ptr::null_mut(), 0, context_ptr);
+            c_callback(0, std::ptr::null_mut(), 0, context_ptr.as_ptr());
         }
 
         let result = future.context.get_result();

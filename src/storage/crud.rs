@@ -1,10 +1,7 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{
-    free_c_string, storage_delete, storage_exists, storage_fetch, string_to_c_string,
-};
+use crate::ffi::{storage_delete, storage_exists, storage_fetch, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 
 pub async fn fetch(node: &StorageNode, cid: &str) -> Result<super::types::Manifest> {
     if cid.is_empty() {
@@ -15,6 +12,7 @@ pub async fn fetch(node: &StorageNode, cid: &str) -> Result<super::types::Manife
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_cid = string_to_c_string(cid);
 
@@ -22,16 +20,12 @@ pub async fn fetch(node: &StorageNode, cid: &str) -> Result<super::types::Manife
         node.with_ctx(|ctx| {
             storage_fetch(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     });
-
-    unsafe {
-        free_c_string(c_cid);
-    }
 
     if result != 0 {
         return Err(StorageError::storage_operation_error(
@@ -57,6 +51,7 @@ pub async fn delete(node: &StorageNode, cid: &str) -> Result<()> {
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_cid = string_to_c_string(cid);
 
@@ -64,16 +59,12 @@ pub async fn delete(node: &StorageNode, cid: &str) -> Result<()> {
         node.with_ctx(|ctx| {
             storage_delete(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     });
-
-    unsafe {
-        free_c_string(c_cid);
-    }
 
     if result != 0 {
         return Err(StorageError::storage_operation_error(
@@ -96,6 +87,7 @@ pub async fn exists(node: &StorageNode, cid: &str) -> Result<bool> {
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_cid = string_to_c_string(cid);
 
@@ -103,16 +95,12 @@ pub async fn exists(node: &StorageNode, cid: &str) -> Result<bool> {
         node.with_ctx(|ctx| {
             storage_exists(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     });
-
-    unsafe {
-        free_c_string(c_cid);
-    }
 
     if result != 0 {
         return Err(StorageError::storage_operation_error(

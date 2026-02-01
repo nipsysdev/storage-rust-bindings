@@ -2,7 +2,6 @@ use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
 use crate::ffi::{storage_list, storage_space};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,15 +42,10 @@ pub struct Space {
 
 pub async fn manifests(node: &StorageNode) -> Result<Vec<Manifest>> {
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
-        node.with_ctx(|ctx| {
-            storage_list(
-                ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        })
+        node.with_ctx(|ctx| storage_list(ctx as *mut _, Some(c_callback), context_ptr.as_ptr()))
     });
 
     if result != 0 {
@@ -80,15 +74,10 @@ pub async fn manifests(node: &StorageNode) -> Result<Vec<Manifest>> {
 
 pub async fn space(node: &StorageNode) -> Result<Space> {
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
-        node.with_ctx(|ctx| {
-            storage_space(
-                ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        })
+        node.with_ctx(|ctx| storage_space(ctx as *mut _, Some(c_callback), context_ptr.as_ptr()))
     });
 
     if result != 0 {

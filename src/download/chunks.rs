@@ -6,9 +6,8 @@
 
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_download_chunk, string_to_c_string};
+use crate::ffi::{storage_download_chunk, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 use std::sync::{Arc, Mutex};
 
 /// Download a single chunk of data
@@ -43,6 +42,7 @@ pub async fn download_chunk(node: &StorageNode, cid: &str) -> Result<Vec<u8>> {
     let chunk_data_clone = chunk_data.clone();
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     future.context.set_progress_callback(move |_len, chunk| {
         if let Some(chunk_bytes) = chunk {
@@ -52,16 +52,16 @@ pub async fn download_chunk(node: &StorageNode, cid: &str) -> Result<Vec<u8>> {
         }
     });
 
-    let context_ptr = future.context_ptr() as *mut c_void;
-
     let result = with_libstorage_lock(|| unsafe {
         let ctx = node.ctx();
         let c_cid = string_to_c_string(cid);
-        let result = storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        free_c_string(c_cid);
-
-        result
+        storage_download_chunk(
+            ctx as *mut _,
+            c_cid.as_ptr(),
+            Some(c_callback),
+            context_ptr.as_ptr(),
+        )
     });
 
     if result != 0 {
@@ -160,6 +160,7 @@ where
 
     let future = CallbackFuture::new();
     let progress_callback_clone = Arc::new(progress_callback);
+    let context_ptr = future.context_ptr();
 
     future.context.set_progress_callback(move |_len, chunk| {
         if let Some(chunk_bytes) = chunk {
@@ -167,16 +168,16 @@ where
         }
     });
 
-    let context_ptr = future.context_ptr() as *mut c_void;
-
     let result = with_libstorage_lock(|| unsafe {
         let ctx = node.ctx();
         let c_cid = string_to_c_string(cid);
-        let result = storage_download_chunk(ctx as *mut _, c_cid, Some(c_callback), context_ptr);
 
-        free_c_string(c_cid);
-
-        result
+        storage_download_chunk(
+            ctx as *mut _,
+            c_cid.as_ptr(),
+            Some(c_callback),
+            context_ptr.as_ptr(),
+        )
     });
 
     if result != 0 {

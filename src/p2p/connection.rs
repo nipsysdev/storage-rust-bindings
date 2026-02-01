@@ -1,8 +1,8 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_connect, string_to_c_string, SendSafePtr};
+use crate::ffi::{storage_connect, string_to_c_string, SendSafeCString};
 use crate::node::lifecycle::StorageNode;
-use libc::{c_char, c_void};
+use libc::c_char;
 
 pub async fn connect(node: &StorageNode, peer_id: &str, peer_addresses: &[String]) -> Result<()> {
     if peer_id.is_empty() {
@@ -20,12 +20,13 @@ pub async fn connect(node: &StorageNode, peer_id: &str, peer_addresses: &[String
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
-    let c_peer_id = unsafe { SendSafePtr::new(string_to_c_string(peer_id)) };
+    let c_peer_id = string_to_c_string(peer_id);
 
-    let c_addresses: Vec<SendSafePtr<c_char>> = peer_addresses
+    let c_addresses: Vec<SendSafeCString> = peer_addresses
         .iter()
-        .map(|addr| unsafe { SendSafePtr::new(string_to_c_string(addr)) })
+        .map(|addr| string_to_c_string(addr))
         .collect();
 
     let result = with_libstorage_lock(|| unsafe {
@@ -36,17 +37,10 @@ pub async fn connect(node: &StorageNode, peer_id: &str, peer_addresses: &[String
                 c_addresses.as_ptr() as *mut *const c_char,
                 c_addresses.len(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     });
-
-    unsafe {
-        free_c_string(c_peer_id.as_ptr());
-        for addr in c_addresses {
-            free_c_string(addr.as_ptr());
-        }
-    }
 
     if result != 0 {
         return Err(StorageError::p2p_error("Failed to connect to peer"));

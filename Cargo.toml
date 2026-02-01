@@ -1,6 +1,6 @@
 [package]
 name = "storage-bindings"
-version = "0.2.2"
+version = "0.2.3"
 edition = "2021"
 description = "Rust bindings for Storage, the Decentralized Durability Engine"
 license = "MIT"

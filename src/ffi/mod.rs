@@ -15,7 +15,7 @@ pub use generated::*;
 
 // Send-safe wrapper for raw pointers
 pub mod send_safe;
-pub use send_safe::SendSafePtr;
+pub use send_safe::{SendSafeCString, SendSafePtr};
 
 use libc::c_char;
 use std::ffi::CStr;
@@ -39,24 +39,9 @@ pub unsafe fn c_str_to_string(ptr: *const c_char) -> Result<String, Utf8Error> {
     c_str.to_str().map(|s| s.to_string())
 }
 
-/// Convert a Rust string to a C string
-pub fn string_to_c_string(s: &str) -> *mut c_char {
-    std::ffi::CString::new(s).unwrap().into_raw()
-}
-
-/// Free a C string created with string_to_c_string
-///
-/// # Safety
-///
-/// The `ptr` must be either:
-/// - A valid pointer to a C string allocated by `string_to_c_string`
-/// - A null pointer (which will be safely ignored)
-///
-/// After calling this function, the pointer becomes invalid and must not be used.
-pub unsafe fn free_c_string(ptr: *mut c_char) {
-    if !ptr.is_null() {
-        let _ = std::ffi::CString::from_raw(ptr);
-    }
+/// Convert a Rust string to a C string (Send-safe)
+pub fn string_to_c_string(s: &str) -> SendSafeCString {
+    SendSafeCString::new(s)
 }
 
 /// Callback return codes
@@ -91,9 +76,8 @@ mod tests {
         let c_str = string_to_c_string(rust_str);
 
         unsafe {
-            let converted = c_str_to_string(c_str).unwrap();
+            let converted = c_str_to_string(c_str.as_ptr()).unwrap();
             assert_eq!(rust_str, converted);
-            free_c_string(c_str);
         }
     }
 }

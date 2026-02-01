@@ -8,7 +8,7 @@ Include in your Cargo project:
 
 ```toml
 [dependencies]
-storage-bindings = "0.2.0"
+storage-bindings = "0.2"
 ```
 
 To learn how to use those bindings, take a look at the [example project](https://github.com/nipsysdev/example-storage-rust-bindings) or the [integration tests](./tests/) directory.

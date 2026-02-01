@@ -8,9 +8,8 @@ use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::download::session::download_init_sync;
 use crate::download::types::{DownloadOptions, DownloadResult, DownloadStreamOptions};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_download_stream, string_to_c_string, SendSafePtr};
+use crate::ffi::{storage_download_stream, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
-use libc::c_void;
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -114,7 +113,7 @@ pub async fn download_stream(
 
     download_init_sync(node, cid, &download_options)?;
 
-    let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
+    let context_ptr = future.context_ptr();
     let filepath_str = options
         .filepath
         .as_ref()
@@ -126,22 +125,15 @@ pub async fn download_stream(
             let c_cid = string_to_c_string(cid);
             let c_filepath = string_to_c_string(filepath_str);
 
-            let result = storage_download_stream(
+            storage_download_stream(
                 ctx as *mut _,
-                c_cid,
+                c_cid.as_ptr(),
                 chunk_size,
                 options.local,
-                c_filepath,
+                c_filepath.as_ptr(),
                 Some(c_callback),
                 context_ptr.as_ptr(),
-            );
-
-            free_c_string(c_cid);
-            if !c_filepath.is_null() {
-                free_c_string(c_filepath);
-            }
-
-            result
+            )
         })
     });
 

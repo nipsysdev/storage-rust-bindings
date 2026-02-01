@@ -1,9 +1,8 @@
 use crate::callback::{c_callback, with_libstorage_lock, CallbackFuture};
 use crate::error::{Result, StorageError};
-use crate::ffi::{free_c_string, storage_peer_debug, storage_peer_id, string_to_c_string};
+use crate::ffi::{storage_peer_debug, storage_peer_id, string_to_c_string};
 use crate::node::lifecycle::StorageNode;
 use crate::p2p::types::PeerRecord;
-use libc::c_void;
 
 pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerRecord> {
     if peer_id.is_empty() {
@@ -14,6 +13,7 @@ pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerReco
     }
 
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let c_peer_id = string_to_c_string(peer_id);
 
@@ -21,16 +21,12 @@ pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerReco
         node.with_ctx(|ctx| {
             storage_peer_debug(
                 ctx as *mut _,
-                c_peer_id,
+                c_peer_id.as_ptr(),
                 Some(c_callback),
-                future.context_ptr() as *mut c_void,
+                context_ptr.as_ptr(),
             )
         })
     };
-
-    unsafe {
-        free_c_string(c_peer_id);
-    }
 
     if result != 0 {
         return Err(StorageError::p2p_error("Failed to get peer info"));
@@ -46,15 +42,10 @@ pub async fn get_peer_info(node: &StorageNode, peer_id: &str) -> Result<PeerReco
 
 pub async fn get_peer_id(node: &StorageNode) -> Result<String> {
     let future = CallbackFuture::new();
+    let context_ptr = future.context_ptr();
 
     let result = with_libstorage_lock(|| unsafe {
-        node.with_ctx(|ctx| {
-            storage_peer_id(
-                ctx as *mut _,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            )
-        })
+        node.with_ctx(|ctx| storage_peer_id(ctx as *mut _, Some(c_callback), context_ptr.as_ptr()))
     });
 
     if result != 0 {
