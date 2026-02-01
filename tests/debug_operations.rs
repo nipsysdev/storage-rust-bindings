@@ -11,41 +11,21 @@ use tempfile::tempdir;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
     let _ = env_logger::try_init();
 
-    println!("Storage Rust Bindings - Debug Operations Test");
-    println!("===========================================");
-
-    // Create a temporary directory for our test
     let temp_dir = tempdir()?;
 
-    // Create a Storage configuration
-    println!("Creating Storage configuration...");
     let config = StorageConfig::new()
         .log_level(storage_bindings::LogLevel::Info)
         .data_dir(temp_dir.path().join("storage_data"))
         .discovery_port(8095);
 
-    // Create and start a Storage node
-    println!("Creating and starting Storage node...");
     let node = StorageNode::new(config).await?;
     node.start().await?;
-    println!("Node started successfully!");
 
     // Get initial debug information
-    println!("\n=== Initial Debug Information ===");
     let debug_info = storage_bindings::debug(&node).await?;
     println!("Peer ID: {}", debug_info.peer_id());
-    println!("Addresses: {:?}", debug_info.addrs);
-    println!("SPR: {}", debug_info.spr);
-    println!("Announce addresses: {:?}", debug_info.announce_addresses);
-    println!("Local node ID: {}", debug_info.table.local_node.node_id);
-    println!(
-        "Local node address: {}",
-        debug_info.table.local_node.address
-    );
-    println!("Local node seen: {}", debug_info.table.local_node.seen);
     println!("Address count: {}", debug_info.address_count());
     println!(
         "Announce address count: {}",
@@ -57,7 +37,7 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Test updating log levels
-    println!("\n=== Testing Log Level Updates ===");
+    println!("\nTesting log level updates:");
     let log_levels = vec![
         LogLevel::Trace,
         LogLevel::Debug,
@@ -69,17 +49,12 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for log_level in log_levels {
-        println!("Setting log level to: {:?}", log_level);
         let update_result = storage_bindings::update_log_level(&node, log_level).await;
         match update_result {
             Ok(()) => {
-                println!("  ✓ Successfully updated log level to {:?}", log_level);
-
-                // Verify the change by getting debug info again
+                println!("  ✓ Log level updated to {:?}", log_level);
                 let debug_info = storage_bindings::debug(&node).await?;
-                println!("  Debug info retrieved successfully after log level change");
-                println!("  Peer ID: {}", debug_info.peer_id());
-                println!("  Address count: {}", debug_info.address_count());
+                println!("    Address count: {}", debug_info.address_count());
             }
             Err(e) => {
                 println!("  ✗ Failed to update log level to {:?}: {}", log_level, e);
@@ -87,11 +62,10 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    // Reset to Info level for further testing
     storage_bindings::update_log_level(&node, LogLevel::Info).await?;
 
     // Test peer debug information
-    println!("\n=== Testing Peer Debug Information ===");
+    println!("\nTesting peer debug information:");
     let test_peer_ids = vec![
         "12D3KooWExamplePeer123456789",
         "QmSomePeerId123456789",
@@ -100,39 +74,13 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     ];
 
     for peer_id in test_peer_ids {
-        println!("Getting debug info for peer: {}", peer_id);
         let peer_record = storage_bindings::peer_debug(&node, peer_id).await;
         match peer_record {
             Ok(record) => {
-                println!("  ✓ Successfully retrieved peer debug info:");
-                println!("    Peer ID: {}", record.id);
-                println!("    Connected: {}", record.connected);
-                println!("    Addresses: {:?}", record.addresses);
-                println!("    Protocols: {:?}", record.protocols);
-                if let Some(direction) = &record.direction {
-                    println!("    Direction: {}", direction);
-                }
-                if let Some(latency) = record.latency_ms {
-                    println!("    Latency: {} ms", latency);
-                }
-                if let Some(user_agent) = &record.user_agent {
-                    println!("    User Agent: {}", user_agent);
-                }
-                if let Some(last_seen) = &record.last_seen {
-                    println!("    Last Seen: {}", last_seen);
-                }
-                if let Some(duration) = record.connection_duration_seconds {
-                    println!("    Connection Duration: {} seconds", duration);
-                }
-                if let Some(bytes_sent) = record.bytes_sent {
-                    println!("    Bytes Sent: {}", bytes_sent);
-                }
-                if let Some(bytes_received) = record.bytes_received {
-                    println!("    Bytes Received: {}", bytes_received);
-                }
-                if let Some(metadata) = &record.metadata {
-                    println!("    Metadata: {}", metadata);
-                }
+                println!(
+                    "  ✓ Peer debug info retrieved: ID={}, Connected={}",
+                    record.id, record.connected
+                );
             }
             Err(e) => {
                 println!("  ✗ Failed to get peer debug info: {}", e);
@@ -141,12 +89,11 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Test invalid peer ID
-    println!("\n=== Testing Invalid Peer ID ===");
+    println!("\nTesting invalid peer IDs:");
     let empty_peer_result = storage_bindings::peer_debug(&node, "").await;
     assert!(empty_peer_result.is_err(), "Should fail with empty peer ID");
     println!("  ✓ Correctly failed with empty peer ID");
 
-    // Test whitespace-only peer ID
     let whitespace_peer_result = storage_bindings::peer_debug(&node, "   \t\n   ").await;
     assert!(
         whitespace_peer_result.is_err(),
@@ -155,22 +102,21 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     println!("  ✓ Correctly failed with whitespace-only peer ID");
 
     // Test debug operations without starting node
-    println!("\n=== Testing Debug Operations Without Starting Node ===");
+    println!("\nTesting debug operations without starting node:");
     let config2 = StorageConfig::new()
         .log_level(storage_bindings::LogLevel::Error)
         .data_dir(temp_dir.path().join("storage_data2"))
         .discovery_port(8096);
 
     let node2 = StorageNode::new(config2).await?;
-    // Don't start the node
 
-    // These should work even if the node is not started
     let debug_info_result = storage_bindings::debug(&node2).await;
     match debug_info_result {
         Ok(info) => {
-            println!("  ✓ Debug info works without starting node:");
-            println!("    Peer ID: {}", info.peer_id());
-            println!("    Address count: {}", info.address_count());
+            println!(
+                "  ✓ Debug info works without starting node: Peer ID={}",
+                info.peer_id()
+            );
         }
         Err(e) => println!("  ✗ Debug info failed without starting node: {}", e),
     }
@@ -187,11 +133,10 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         Err(e) => println!("  ✗ Peer debug failed without starting node: {}", e),
     }
 
-    // Clean up the second node
     node2.destroy().await?;
 
     // Test concurrent debug operations
-    println!("\n=== Testing Concurrent Debug Operations ===");
+    println!("\nTesting concurrent debug operations:");
     let debug_future1 = storage_bindings::debug(&node);
     let debug_future2 = storage_bindings::debug(&node);
     let peer_debug_future1 = storage_bindings::peer_debug(&node, "12D3KooWTestPeer1");
@@ -204,14 +149,12 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         peer_debug_future2
     );
 
-    println!("Concurrent operations results:");
     assert!(debug_result1.is_ok(), "debug (1) should succeed");
     println!("  ✓ debug (1): succeeded");
 
     assert!(debug_result2.is_ok(), "debug (2) should succeed");
     println!("  ✓ debug (2): succeeded");
 
-    // Peer debug might fail for test peers, that's expected
     match peer_debug_result1 {
         Ok(_) => println!("  ✓ peer_debug (1): succeeded"),
         Err(_) => println!("  ✗ peer_debug (1): failed (expected for test peer)"),
@@ -223,9 +166,8 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Get final debug information
-    println!("\n=== Final Debug Information ===");
+    println!("\nFinal node state:");
     let final_debug_info = storage_bindings::debug(&node).await?;
-    println!("Final node state:");
     println!("  Peer ID: {}", final_debug_info.peer_id());
     println!("  Address count: {}", final_debug_info.address_count());
     println!(
@@ -236,18 +178,11 @@ async fn test_debug_operations() -> Result<(), Box<dyn std::error::Error>> {
         "  Discovery node count: {}",
         final_debug_info.discovery_node_count()
     );
-    println!(
-        "  Local node ID: {}",
-        final_debug_info.table.local_node.node_id
-    );
     println!("  Health status: {}", final_debug_info.health_status());
 
-    // Stop and destroy the node
-    println!("\n=== Cleanup ===");
+    // Cleanup
     node.stop().await?;
     node.destroy().await?;
-    println!("Node stopped and destroyed.");
 
-    println!("\nDebug operations test completed successfully!");
     Ok(())
 }

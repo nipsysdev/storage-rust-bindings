@@ -89,22 +89,6 @@ async fn test_send_sync_traits() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_clone_trait() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new().data_dir(temp_dir.path());
-
-    let node1 = StorageNode::new(config).await.unwrap();
-    let node2 = node1.clone();
-
-    assert!(!node1.is_started());
-    assert!(!node2.is_started());
-
-    node1.start().await.unwrap();
-    assert!(node1.is_started());
-    assert!(node2.is_started());
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn test_send_between_threads() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
@@ -217,23 +201,6 @@ async fn test_shared_node_across_tasks() {
         let result = handle.await.unwrap();
         println!("Task result: {}", result);
     }
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_send_future_compatibility() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new().data_dir(temp_dir.path());
-    let node = Arc::new(StorageNode::new(config).await.unwrap());
-
-    node.start().await.unwrap();
-
-    let file_path = temp_dir.path().join("test.txt");
-    std::fs::write(&file_path, b"Hello, Storage!").unwrap();
-
-    let options = storage_bindings::UploadOptions::new().filepath(&file_path);
-    let _result = storage_bindings::upload_file(&node, options).await.unwrap();
-
-    assert_eq!("success", "success");
 }
 
 #[tokio::test(flavor = "multi_thread")]

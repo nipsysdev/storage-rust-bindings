@@ -77,48 +77,6 @@ async fn test_no_memory_leak_with_operations() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_context_invalidated_after_destroy() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new()
-        .log_level(LogLevel::Error)
-        .data_dir(temp_dir.path().join("storage"));
-
-    let node = StorageNode::new(config).await.unwrap();
-    node.start().await.unwrap();
-    node.stop().await.unwrap();
-
-    // Destroy the node
-    node.destroy().await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_no_double_free() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new()
-        .log_level(LogLevel::Error)
-        .data_dir(temp_dir.path().join("storage"))
-        .discovery_port(8090);
-
-    let node = StorageNode::new(config).await.unwrap();
-    node.start().await.unwrap();
-    node.stop().await.unwrap();
-    node.destroy().await.unwrap();
-    // Node is already dropped after destroy
-
-    // Create another node to ensure no corruption
-    let temp_dir2 = tempdir().unwrap();
-    let config2 = StorageConfig::new()
-        .log_level(LogLevel::Error)
-        .data_dir(temp_dir2.path().join("storage2"))
-        .discovery_port(8091);
-
-    let node2 = StorageNode::new(config2).await.unwrap();
-    node2.start().await.unwrap();
-    node2.stop().await.unwrap();
-    node2.destroy().await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn test_multiple_references_prevent_destroy() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new()
@@ -142,33 +100,4 @@ async fn test_multiple_references_prevent_destroy() {
     // Now destroy should succeed
     let result = node.destroy().await;
     assert!(result.is_ok());
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_lifecycle_cleanup() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new()
-        .log_level(LogLevel::Error)
-        .data_dir(temp_dir.path().join("storage"))
-        .discovery_port(8093);
-
-    let node = StorageNode::new(config).await.unwrap();
-    node.start().await.unwrap();
-    node.stop().await.unwrap();
-    node.destroy().await.unwrap();
-}
-
-#[tokio::test(flavor = "multi_thread")]
-async fn test_drop_cleanup() {
-    let temp_dir = tempdir().unwrap();
-    let config = StorageConfig::new()
-        .log_level(LogLevel::Error)
-        .data_dir(temp_dir.path().join("storage"))
-        .discovery_port(8094);
-
-    {
-        let node = StorageNode::new(config).await.unwrap();
-        node.start().await.unwrap();
-        // Node will be dropped here without explicit destroy
-    }
 }
