@@ -73,8 +73,8 @@ async fn test_concurrent_access() {
     }
 }
 
-#[test]
-fn test_send_sync_traits() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_send_sync_traits() {
     fn assert_send<T: Send>() {}
     fn assert_sync<T: Sync>() {}
 
@@ -88,8 +88,8 @@ fn test_send_sync_traits() {
     assert_send::<Arc<StorageNode>>();
 }
 
-#[test]
-fn test_clone_trait() {
+#[tokio::test(flavor = "multi_thread")]
+async fn test_clone_trait() {
     let temp_dir = tempdir().unwrap();
     let config = StorageConfig::new().data_dir(temp_dir.path());
 
