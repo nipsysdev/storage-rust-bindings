@@ -3,7 +3,7 @@ use crate::error::{Result, StorageError};
 use crate::ffi::{
     free_c_string, storage_close, storage_destroy, storage_new, storage_peer_id, storage_repo,
     storage_revision, storage_spr, storage_start, storage_stop, storage_version,
-    string_to_c_string,
+    string_to_c_string, SendSafePtr,
 };
 use crate::node::config::StorageConfig;
 use libc::c_void;
@@ -55,13 +55,10 @@ impl StorageNode {
         let c_json_config = string_to_c_string(&json_config);
 
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let node_ctx = with_libstorage_lock(|| unsafe {
-            let node_ctx = storage_new(
-                c_json_config,
-                Some(c_callback),
-                future.context_ptr() as *mut c_void,
-            );
+            let node_ctx = storage_new(c_json_config, Some(c_callback), context_ptr.as_ptr());
 
             free_c_string(c_json_config);
 
@@ -120,14 +117,14 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_start(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_start(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("start", "Failed to start node"));
@@ -163,14 +160,14 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_stop(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_stop(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("stop", "Failed to stop node"));
@@ -212,14 +209,14 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_close(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("close", "Failed to close node"));
@@ -259,14 +256,14 @@ impl StorageNode {
         }
 
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = self.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_close(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_close(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("destroy", "Failed to close node"));
@@ -314,14 +311,14 @@ impl StorageNode {
     pub async fn version(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_version(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_version(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("version", "Failed to get version"));
@@ -334,14 +331,14 @@ impl StorageNode {
     pub async fn revision(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_revision(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_revision(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error(
@@ -357,14 +354,14 @@ impl StorageNode {
     pub async fn repo(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_repo(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_repo(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("repo", "Failed to get repo path"));
@@ -377,14 +374,14 @@ impl StorageNode {
     pub async fn spr(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_spr(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_spr(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("spr", "Failed to get SPR"));
@@ -419,14 +416,14 @@ impl StorageNode {
     pub async fn peer_id(&self) -> Result<String> {
         let node = self.clone();
         let future = CallbackFuture::new();
+        let context_ptr = unsafe { SendSafePtr::new(future.context_ptr() as *mut c_void) };
 
         let ctx = {
             let inner = node.inner.lock().unwrap();
             inner.ctx as *mut _
         };
 
-        let result =
-            unsafe { storage_peer_id(ctx, Some(c_callback), future.context_ptr() as *mut c_void) };
+        let result = unsafe { storage_peer_id(ctx, Some(c_callback), context_ptr.as_ptr()) };
 
         if result != 0 {
             return Err(StorageError::node_error("peer_id", "Failed to get peer ID"));

@@ -13,6 +13,10 @@ mod generated {
 // Re-export all the generated bindings
 pub use generated::*;
 
+// Send-safe wrapper for raw pointers
+pub mod send_safe;
+pub use send_safe::SendSafePtr;
+
 use libc::c_char;
 use std::ffi::CStr;
 use std::str::Utf8Error;

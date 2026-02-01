@@ -142,6 +142,9 @@ impl Drop for CallbackContext {
     }
 }
 
+unsafe impl Send for CallbackContext {}
+unsafe impl Sync for CallbackContext {}
+
 pub struct CallbackFuture {
     pub(crate) context: Arc<CallbackContext>,
 }
@@ -221,6 +224,7 @@ impl std::future::Future for CallbackFuture {
 }
 
 unsafe impl Send for CallbackFuture {}
+unsafe impl Sync for CallbackFuture {}
 
 pub fn with_libstorage_lock<F, R>(f: F) -> R
 where
